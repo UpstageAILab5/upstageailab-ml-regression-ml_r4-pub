@@ -1,0 +1,19 @@
+data:
+  raw_data_path: "data/raw/"
+  processed_data_path: "data/processed/"
+  target_column: "price"
+  categorical_features:
+    - "property_type"
+    - "location"
+    - "transaction_type"
+  numerical_features:
+    - "size"
+    - "rooms"
+    - "age"
+    - "floor"
+    - "latitude"
+    - "longitude"
+
+preprocessing:
+  missing_threshold: 0.5  # 결측치 비율이 이 이상인 컬럼 제거
+  outlier_threshold: 3    # IQR 방식의 이상치 처리를 위한 배수
