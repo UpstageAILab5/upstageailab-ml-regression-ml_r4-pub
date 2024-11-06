@@ -1,24 +1,27 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
-import logging
 from typing import Tuple, List, Dict
 
-class DataCollector:
+class DataLoader:
     """데이터 수집 및 기본 검증 클래스"""
-    
     def __init__(self, config: Dict):
         self.config = config
-        self.logger = logging.getLogger(__name__)
-        
-    def load_data(self) -> pd.DataFrame:
-        """데이터 로드 및 기본 검증"""
+        self.logger = config.get('logger')
+    def load_data(self, target) -> pd.DataFrame:
         try:
-            df = pd.read_csv(self.config['data']['raw_data_path'])
-            self.logger.info(f"데이터 로드 완료: {df.shape}")
+            print('Data loading...')
+            data_list = self.config.get('data')['csv_files']
+            target_list = [data for data in data_list if target in data]
+            print(f'Target found: {target_list}\n{target_list[0]}' )
+            df = pd.read_csv(target_list[0])
+            self.logger.info(f'Data loaded: {df.shape}')
+            display(df.head(3))
+            print(f'Columns: {df.columns}')
+
             return df
         except Exception as e:
-            self.logger.error(f"데이터 로드 실패: {str(e)}")
+            self.logger.error(f'Failed to load data: {str(e)}')
             raise
             
     def validate_data(self, df: pd.DataFrame) -> bool:
@@ -30,7 +33,7 @@ class DataCollector:
         required_columns = (
             self.config['data']['categorical_features'] + 
             self.config['data']['numerical_features'] +
-            [self.config['data']['target_column']]
+            [self.config.get('target')]
         )
         
         # 컬럼 존재 확인
@@ -40,20 +43,81 @@ class DataCollector:
             return False
             
         # 데이터 타입 및 기본 제약조건 확인
-        if df[self.config['data']['target_column']].min() < 0:
+        if df[self.config.get('target')].min() < 0:
             self.logger.error("타겟 변수에 음수 값 존재")
             return False
-            
         return True
-
-class DataPreprocessor:
-    """데이터 전처리 클래스"""
+  
     
+
+class DataPrep:
     def __init__(self, config: Dict):
         self.config = config
-        self.label_encoders = {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = config.get('logger')
+
+    def _is_numeric_convertible(self, series: pd.Series) -> bool:
+        """결측치를 제외한 값들이 숫자로 변환 가능한지만 확인"""
+        # 결측치가 아닌 값들만 검사
+        non_null_values = series.dropna()
+        if len(non_null_values) == 0:
+            return False
+            
+        try:
+            pd.to_numeric(non_null_values, errors='raise')
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def infer_feature_types(self, df: pd.DataFrame) -> Tuple[List[str], List[str]]:
+        numerical_features = []
+        categorical_features = []
         
+        target_col = self.config.get('target')
+        features = [col for col in df.columns if col != target_col]
+        
+        for col in features:
+            self.logger.info(f"\n=== {col} 컬럼 분석 ===")
+            self.logger.info(f"데이터 타입: {df[col].dtype}")
+            self.logger.info(f"is_numeric_dtype 결과: {pd.api.types.is_numeric_dtype(df[col])}")
+            
+            # numpy나 pandas의 숫자형 타입 직접 확인
+            is_numeric = df[col].dtype in ['int64', 'float64', 'int32', 'float32']
+            self.logger.info(f"직접 타입 체크 결과: {is_numeric}")
+            
+            # 이미 숫자형인 경우
+            if is_numeric:  # 수정된 부분
+                unique_ratio = df[col].nunique() / len(df)
+                self.logger.info(f"{col}: 숫자형, 유니크 비율 = {unique_ratio:.2%}")
+                
+                if unique_ratio < self.config.get('prep')['unique_thr']:
+                    self.logger.info(f"{col}: 범주형으로 분류 (적은 유니크값)")
+                    categorical_features.append(col)
+                else:
+                    self.logger.info(f"{col}: 수치형으로 분류")
+                    numerical_features.append(col)
+            else:
+                if self._is_numeric_convertible(df[col]):
+                    self.logger.info(f"{col}: 숫자형 변환 가능")
+                    temp_series = df[col].copy()
+                    non_null_mask = temp_series.notna()
+                    temp_series.loc[non_null_mask] = pd.to_numeric(temp_series[non_null_mask], errors='coerce') #errors='coerce' will transform string values to NaN, that can then be replaced if desired
+                    
+                    unique_ratio = temp_series.nunique() / len(df)
+                    if unique_ratio < self.config.get('prep')['unique_thr']:
+                        categorical_features.append(col)
+                    else:
+                        numerical_features.append(col)
+                else:
+                    categorical_features.append(col)
+        
+        self.logger.info("\n=== 최종 결과 ===")
+        self.logger.info(f"수치형 피처: {len(numerical_features)}\n{numerical_features}")
+        self.logger.info(f"범주형 피처: {len(categorical_features)}\n{categorical_features}")
+        self.config['data']['numerical_features'] = numerical_features
+        self.config['data']['categorical_features'] = categorical_features
+        return numerical_features, categorical_features
+
+    
     def handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
         """결측치 처리"""
         df_processed = df.copy()
@@ -61,7 +125,7 @@ class DataPreprocessor:
         # 결측치가 많은 컬럼 제거
         missing_ratio = df_processed.isnull().sum() / len(df_processed)
         cols_to_drop = missing_ratio[
-            missing_ratio > self.config['preprocessing']['missing_threshold']
+            missing_ratio > self.config['prep']['missing_thr']
         ].index
         df_processed = df_processed.drop(columns=cols_to_drop)
         
@@ -80,7 +144,6 @@ class DataPreprocessor:
                                       inplace=True)
                 
         return df_processed
-        
     def handle_outliers(self, df: pd.DataFrame) -> pd.DataFrame:
         """이상치 처리 (IQR 방식)"""
         df_processed = df.copy()
@@ -91,7 +154,7 @@ class DataPreprocessor:
                 Q1 = df_processed[col].quantile(0.25)
                 Q3 = df_processed[col].quantile(0.75)
                 IQR = Q3 - Q1
-                threshold = self.config['preprocessing']['outlier_threshold']
+                threshold = self.config['prep']['outlier_thr']
                 
                 lower_bound = Q1 - threshold * IQR
                 upper_bound = Q3 + threshold * IQR
