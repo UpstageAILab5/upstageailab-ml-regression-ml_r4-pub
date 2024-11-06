@@ -6,8 +6,16 @@ import lightgbm as lgb
 from sklearn.ensemble import RandomForestRegressor
 from catboost import CatBoostRegressor
 import numpy as np
+from sklearn.model_selection import cross_val_score, KFold
+from sklearn.metrics import make_scorer, mean_squared_error
 
-def train_model(config=None, model_name="xgboost", X_train=None, y_train=None, X_test=None, y_test=None):
+random_seed = 2024
+
+
+def rmse(y_true, y_pred):
+    return np.sqrt(mean_squared_error(y_true, y_pred))
+
+def train_model(config=None, dataset_name = 'default', model_name="xgboost", X_train=None, y_train=None, X_test=None, y_test=None):
     wandb.init(config=config)
     config = wandb.config
 
@@ -54,11 +62,25 @@ def train_model(config=None, model_name="xgboost", X_train=None, y_train=None, X
         raise ValueError("Unsupported model type")
 
     # 모델 훈련 및 평가
-    model.fit(X_train, y_train)
-    predictions = model.predict(X_test)
-    rmse = np.sqrt(mean_squared_error(y_test, predictions))
-
-
+    # Cross-validation using RMSE
+    if dataset_name == 'baseline':
+        print('Baseline Dataset')
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        rmse = np.sqrt(mean_squared_error(y_test, predictions))
+    elif dataset_name == 'k_fold_cross_val':
+        print('k-fold val Dataset')
+        X =np.vstack((X_train, X_test))
+        y = np.vstack((y_train, y_test))
+        rmse_scorer = make_scorer(rmse, greater_is_better=False)
+        # Set up cross-validation
+        kf = KFold(n_splits=5, shuffle=True, random_state=random_seed)
+        cv_scores = cross_val_score(model, X, y, cv=kf, scoring=rmse_scorer)
+        # Log mean RMSE to W&B
+        rmse = -np.mean(cv_scores)  # Negative sign since scorer returns negative values for maximization
+    else:
+        print('err')
+        rmse = 0
     # wandb에 메트릭 로깅
     wandb.log({"rmse": rmse})
     wandb.finish()
