@@ -17,6 +17,7 @@ from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 from numba import jit
 import warnings
+from tqdm import tqdm
 warnings.filterwarnings('ignore')
 
 class Clustering:
@@ -174,20 +175,24 @@ class ClusteringAnalysis:
         n_noise = list(labels).count(-1)
         return n_clusters, n_noise
     
-    def _find_optimal_min_samples_parallel(self, X_scaled: np.ndarray, 
-                                         eps: float, 
-                                         min_samples_range: range) -> int:
-        """병렬 처리를 사용한 최적 min_samples 값 탐색"""
-        # 병렬 처리를 위한 파라미터 준비
-        params = [(ms, X_scaled, eps) for ms in min_samples_range]
+    def _find_optimal_min_samples(self, X_scaled: np.ndarray, 
+                                eps: float, 
+                                min_samples_range: range) -> int:
+        """순차적 처리를 사용한 최적 min_samples 값 탐색"""
+        n_clusters_list = []
+        n_noise_list = []
         
-        # 병렬 처리 실행
-        with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
-            results = list(executor.map(self._parallel_dbscan, params))
+        # tqdm 추가
+        for min_samples in tqdm(min_samples_range, 
+                              desc="Finding optimal min_samples",
+                              position=0):
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=self.n_jobs)
+            labels = dbscan.fit_predict(X_scaled)
+            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+            n_noise = list(labels).count(-1)
+            n_clusters_list.append(n_clusters)
+            n_noise_list.append(n_noise)
         
-        n_clusters_list, n_noise_list = zip(*results)
-        
-        # 최적값 선택 (벡터화된 연산)
         optimal_idx = np.argmax(np.diff(n_clusters_list))
         return min_samples_range[optimal_idx]
     
@@ -196,25 +201,34 @@ class ClusteringAnalysis:
         """최적화된 DBSCAN 적용"""
         eps, min_samples = self.load_dbscan_params()
         
-        # 데이터 전처리 (벡터화)
+        # 데이터 전처리 진행률 표시
+        self.logger.info("데이터 전처리 시작...")
         X = df[features].apply(pd.to_numeric, errors='coerce')
         
-        # 스케일링
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+        # 배치 처리로 대규모 데이터 처리
+        batch_size = 10000
+        results = []
         
-        # 병렬 처리로 DBSCAN 실행
-        dbscan = DBSCAN(
-            eps=eps, 
-            min_samples=min_samples, 
-            n_jobs=self.n_jobs
-        )
-        labels = dbscan.fit_predict(X_scaled)
+        for batch_start in tqdm(range(0, len(X), batch_size),
+                              desc="Processing batches",
+                              position=0):
+            batch_end = min(batch_start + batch_size, len(X))
+            batch = X.iloc[batch_start:batch_end]
+            
+            # 스케일링
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(batch)
+            
+            # DBSCAN 실행
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=self.n_jobs)
+            labels = dbscan.fit_predict(X_scaled)
+            results.extend(labels)
         
-        # 결과 저장 및 요약
-        df['cluster_id'] = labels
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
+        df['cluster_id'] = results
+        
+        # 결과 요약
+        n_clusters = len(set(results)) - (1 if -1 in results else 0)
+        n_noise = results.count(-1)
         
         self.logger.info(f"클러스터 수: {n_clusters}")
         self.logger.info(f"노이즈 포인트 수: {n_noise}")
@@ -226,11 +240,15 @@ class ClusteringAnalysis:
         for i in range(0, len(X), batch_size):
             yield X[i:i + batch_size]
 
-    def _visualize_clustering(self, X_scaled: np.ndarray, 
-                            eps: float, min_samples: int) -> None:
-        """최적 파라미터로 클러스터링 결과 시각화"""
-        dbscan = DBSCAN(eps=eps, min_samples=min_samples)
-        labels = dbscan.fit_predict(X_scaled)
+    def _batch_process(self, X: np.ndarray, batch_size: int = 1000):
+        """대용량 데이터를 위한 배치 처리"""
+        total_batches = len(X) // batch_size + (1 if len(X) % batch_size else 0)
+        
+        for i in tqdm(range(0, len(X), batch_size),
+                     desc="Processing data batches",
+                     total=total_batches,
+                     position=0):
+            yield X[i:i + batch_size]
         
         # 2D로 시각화 (처음 두 특성 사용)
         plt.figure(figsize=(10, 6))
