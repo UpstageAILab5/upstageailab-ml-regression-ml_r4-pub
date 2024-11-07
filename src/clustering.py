@@ -164,24 +164,26 @@ class ClusteringAnalysis:
         
         return distances[knee_locator.elbow]
     
+    @staticmethod
+    def _parallel_dbscan(params: Tuple) -> Tuple[int, int]:
+        """DBSCAN 클러스터링을 수행하는 정적 메서드"""
+        min_samples, X, eps = params
+        dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=-1)
+        labels = dbscan.fit_predict(X)
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+        return n_clusters, n_noise
+    
     def _find_optimal_min_samples_parallel(self, X_scaled: np.ndarray, 
                                          eps: float, 
                                          min_samples_range: range) -> int:
         """병렬 처리를 사용한 최적 min_samples 값 탐색"""
-        def _parallel_dbscan(params):
-            min_samples, X, eps = params
-            dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=self.n_jobs)
-            labels = dbscan.fit_predict(X)
-            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-            n_noise = list(labels).count(-1)
-            return n_clusters, n_noise
-        
         # 병렬 처리를 위한 파라미터 준비
         params = [(ms, X_scaled, eps) for ms in min_samples_range]
         
         # 병렬 처리 실행
         with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
-            results = list(executor.map(_parallel_dbscan, params))
+            results = list(executor.map(self._parallel_dbscan, params))
         
         n_clusters_list, n_noise_list = zip(*results)
         
