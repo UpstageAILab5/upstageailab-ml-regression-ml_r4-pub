@@ -59,7 +59,7 @@ class FeatureAdditional:
     def __init__(self, config):
         self.config = config
         self.logger = config.get('logger')
-    def distance_analysis(self, df, subway_feature, df_coor, subway_coor, radius):
+    def distance_analysis(self, df, subway_feature, df_coor, subway_coor, radius, target):
         """
         거리 분석 수행
         
@@ -76,7 +76,7 @@ class FeatureAdditional:
         radius : float
             검색 반경(미터)
         """
-        self.logger.info(f"### {radius}m 반경 내 지하철역 수 분석 시작")
+        self.logger.info(f"### {target} 거리 분석 시작")
         
         # 좌표계 변환기 설정
         transformer = Transformer.from_crs(
@@ -85,7 +85,7 @@ class FeatureAdditional:
             always_xy=True
         )
         
-        # 지하철 좌표 미리 변환 (반복 계산 방지)
+        # 지하철 좌표 미리 변환
         subway_coords = []
         for _, row in subway_feature.iterrows():
             x, y = transformer.transform(
@@ -94,8 +94,10 @@ class FeatureAdditional:
             )
             subway_coords.append((y, x))  # 위도, 경도 순서
         
-        # 새로운 컬럼명
-        new_col = f'near_{radius}m_subway_count'
+        # 새로운 컬럼명들
+        count_col = f'{target}_near_{radius}m_count'
+        avg_col = f'{target}_avg_distance'
+        short_col = f'{target}_shortest_distance'
         
         # 각 건물에 대해 거리 계산
         for idx, row in tqdm(df.iterrows(), total=len(df), desc="거리 계산"):
@@ -105,14 +107,31 @@ class FeatureAdditional:
                 row[df_coor['y']]
             )
             
-            # 모든 지하철역과의 거리 계산 및 반경 내 개수 세기
-            count = sum(1 for subway_coord in subway_coords 
-                       if geodesic((y1, x1), subway_coord).meters <= radius)
+            # 모든 정류장과의 거리 계산
+            distances = [geodesic((y1, x1), coord).meters for coord in subway_coords]
             
-            df.loc[idx, new_col] = count
+            # 1. 반경 내 개수
+            count = sum(1 for d in distances if d <= radius)
+            df.loc[idx, count_col] = count
+            
+            # 2. 평균 거리 (반경 내 정류장만 고려)
+            nearby_distances = [d for d in distances if d <= radius]
+            if nearby_distances:  # 반경 내 정류장이 있는 경우만
+                df.loc[idx, avg_col] = np.mean(nearby_distances)
+            else:
+                df.loc[idx, avg_col] = radius  # 또는 np.nan
+            
+            # 3. 최단 거리
+            df.loc[idx, short_col] = min(distances)
         
-        self.logger.info(f"거리 분석 완료: {new_col} 컬럼 생성")
-        return df
+        self.logger.info(f"거리 분석 완료: {count_col}, {avg_col}, {short_col} 컬럼 생성")
+        
+        # 생성된 컬럼들의 기초 통계량 출력
+        for col in [count_col, avg_col, short_col]:
+            stats = df[col].describe()
+            self.logger.info(f"\n{col} 통계:\n{stats}")
+        
+        return df, [count_col, avg_col, short_col]
 
 # average_distance: 집에서 가까운 정류장까지의 평균 거리
 # shortest_distance: 가장 가까운 정류장까지의 거리

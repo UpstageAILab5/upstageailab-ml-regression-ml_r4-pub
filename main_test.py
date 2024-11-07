@@ -131,17 +131,15 @@ if not os.path.exists(path_feat_add):
 
     logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
     concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
-    # Train data와 Test data shape은 아래와 같습니다.
-    # Train과 Test data를 살펴보겠습니다.
-    # train/test 구분을 위한 칼럼을 하나 만들어 줍니다.
+
     dt_train['is_test'] = 0
     dt_test['is_test'] = 1
     logger.info('is_test column added to train and test data.\nConcat train and test data.')
     concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
     concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
     # 칼럼 이름을 쉽게 바꿔주겠습니다. 다른 칼럼도 사용에 따라 바꿔주셔도 됩니다!
-    concat = feat_add.distance_analysis(concat, subway_feature, df_coor, subway_coor, 500)
-    concat = feat_add.distance_analysis(concat, bus_feature, df_coor, bus_coor, 500)
+    concat, subway_cols = feat_add.distance_analysis(concat, subway_feature, df_coor, subway_coor, 500, 'subway')
+    concat, bus_cols = feat_add.distance_analysis(concat, bus_feature, df_coor, bus_coor, 500, 'bus')
     logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
     #df.drop(df.columns[0], axis=1, inplace=True)
     concat.to_csv(path_feat_add)
@@ -186,11 +184,11 @@ else:
 ########################################################################################################################################
 ## Clustering
 logger.info('>>>>Clustering 시작...')
-cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ]
-clustering_analysis.find_optimal_dbscan_params(dt_train, features = ['average_distance', 'shortest_distance', 'num_nearby']+ cols,
+cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + subway_cols + bus_cols
+clustering_analysis.find_optimal_dbscan_params(dt_train, features = cols,
                                  min_samples_range = range(2, 10),
                                  n_neighbors = 5) 
-clustering_analysis.apply_dbscan_with_saved_params(dt_train, features = ['average_distance', 'shortest_distance', 'num_nearby']+ cols)
+clustering_analysis.apply_dbscan_with_saved_params(dt_train, features =  cols)
 ########################################################################################################################################
 # out_path_data = model_instance.save_data(prep_data)
 # # loaded_data = load_data_pkl(out_path_data)
