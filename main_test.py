@@ -2,8 +2,8 @@
 from pathlib import Path
 import os
 
-import pygwalker as pyg
-import dabl
+# import pygwalker as pyg
+# import dabl
 import pandas as pd
 
 from src.logger import Logger
@@ -38,7 +38,8 @@ plt.rc('axes', unicode_minus=False)
 # plt.text(0.5, 0.5, '한글 테스트', ha='center', va='center')
 # plt.axis('off')
 # plt.show()
-base_path =Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
+base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
+##Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
 # setup_matplotlib_korean(logger)
 #Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
 out_path = os.path.join(base_path,'output')
