@@ -45,6 +45,9 @@ def main_sweep():
     y_test = prep_data.get('y_val')
     cont_col = prep_data.get('continuous_columns')
     cat_col = prep_data.get('categorical_columns')
+
+    y_train = y_train.reshape(-1, 1) if y_train.ndim == 1 else y_train
+    y_test = y_test.reshape(-1, 1) if y_test.ndim == 1 else y_test
     #cols = ['계약년', '전용면적', '강남여부', '구', '건축년도', '좌표X', '좌표Y', '동']+['층', 'k-전체동수', 'k-전체세대수', '주차대수'] +['신축여부', 'distance_sum_subway', 'distance_sum_bus']
 
     print(X_train.head(3), X_test.head(3), y_train.head(3), y_test.head(3))

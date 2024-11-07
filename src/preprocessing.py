@@ -1,185 +1,253 @@
+import os
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from typing import Tuple, List, Dict
+import matplotlib.pyplot as plt
+import seaborn as sns
+from src.utils import get_unique_filename
 
-class DataLoader:
-    """데이터 수집 및 기본 검증 클래스"""
-    def __init__(self, config: Dict):
+class DataPrep():
+    def __init__(self, config):
+        self.time_delay = config.get('time_delay', 3)
+        self.base_path = config.get('base_path')
+        self.data_path = os.path.join(self.base_path, 'data')
+        self.train_path = os.path.join(self.data_path, 'train.csv')
+        self.test_path  = os.path.join(self.data_path, 'test.csv')
+        self.out_path = config.get('out_path')
+        self.target = config.get('target')
         self.config = config
         self.logger = config.get('logger')
-    def load_data(self, target) -> pd.DataFrame:
-        try:
-            print('Data loading...')
-            data_list = self.config.get('data')['csv_files']
-            target_list = [data for data in data_list if target in data]
-            print(f'Target found: {target_list}\n{target_list[0]}' )
-            df = pd.read_csv(target_list[0])
-            self.logger.info(f'Data loaded: {df.shape}')
-            display(df.head(3))
-            print(f'Columns: {df.columns}')
-
-            return df
-        except Exception as e:
-            self.logger.error(f'Failed to load data: {str(e)}')
-            raise
-            
-    def validate_data(self, df: pd.DataFrame) -> bool:
-        """데이터 기본 검증
-        - 필수 컬럼 존재 확인
-        - 데이터 타입 확인
-        - 기본적인 제약조건 확인
-        """
-        required_columns = (
-            self.config['data']['categorical_features'] + 
-            self.config['data']['numerical_features'] +
-            [self.config.get('target')]
-        )
+        self.thr_ratio_outlier = config.get('thr_ratio_outlier')
+        self.thr_ratio_null = config.get('thr_ratio_null')        
+        # 경로 확인
+        if not os.path.exists(self.train_path):
+            raise FileNotFoundError(f'Train 파일을 찾을 수 없습니다: {self.train_path}')
+        if not os.path.exists(self.test_path):
+            raise FileNotFoundError(f'Test 파일을 찾을 수 없습니다: {self.test_path}')
         
-        # 컬럼 존재 확인
-        missing_cols = set(required_columns) - set(df.columns)
-        if missing_cols:
-            self.logger.error(f"필수 컬럼 누락: {missing_cols}")
-            return False
-            
-        # 데이터 타입 및 기본 제약조건 확인
-        if df[self.config.get('target')].min() < 0:
-            self.logger.error("타겟 변수에 음수 값 존재")
-            return False
-        return True
-  
+        self.logger.info('#### Init Data Prep.. ')
     
+    def data_prep(self):
+        self.logger.info('#### Data Prep starts...')
+        concat = self._load_data_concat_train_test()
+        before_profile = DataPrep.get_data_profile(concat, stage="before")
 
-class DataPrep:
-    def __init__(self, config: Dict):
-        self.config = config
-        self.logger = config.get('logger')
-
-    def _is_numeric_convertible(self, series: pd.Series) -> bool:
-        """결측치를 제외한 값들이 숫자로 변환 가능한지만 확인"""
-        # 결측치가 아닌 값들만 검사
-        non_null_values = series.dropna()
-        if len(non_null_values) == 0:
-            return False
-            
-        try:
-            pd.to_numeric(non_null_values, errors='raise')
-            return True
-        except (ValueError, TypeError):
-            return False
-
-    def infer_feature_types(self, df: pd.DataFrame) -> Tuple[List[str], List[str]]:
-        numerical_features = []
-        categorical_features = []
-        
-        target_col = self.config.get('target')
-        features = [col for col in df.columns if col != target_col]
-        
-        for col in features:
-            self.logger.info(f"\n=== {col} 컬럼 분석 ===")
-            self.logger.info(f"데이터 타입: {df[col].dtype}")
-            self.logger.info(f"is_numeric_dtype 결과: {pd.api.types.is_numeric_dtype(df[col])}")
-            
-            # numpy나 pandas의 숫자형 타입 직접 확인
-            is_numeric = df[col].dtype in ['int64', 'float64', 'int32', 'float32']
-            self.logger.info(f"직접 타입 체크 결과: {is_numeric}")
-            
-            # 이미 숫자형인 경우
-            if is_numeric:  # 수정된 부분
-                unique_ratio = df[col].nunique() / len(df)
-                self.logger.info(f"{col}: 숫자형, 유니크 비율 = {unique_ratio:.2%}")
+        concat = self._null_prep(concat)
+        self._null_check(concat)
+        concat = self._remove_null(concat)
+        self._null_check(concat)
+        concat = self._interpolation(concat)
+        after_profile = DataPrep.get_data_profile(concat, stage="after")
+        # 전후 비교 테이블 생성
+        comparison = pd.concat([before_profile, after_profile], 
+                            keys=['Before', 'After'], 
+                            axis=1)
+        # 변화량 계산
+        changes = pd.DataFrame()
+        for col in comparison.index:
+            if col in before_profile.index and col in after_profile.index:
+                numeric_cols = ['missing_ratio', 'unique_ratio']
+                if pd.api.types.is_numeric_dtype(concat[col]):
+                    numeric_cols.extend(['mean', 'std', 'outlier_ratio'])
                 
-                if unique_ratio < self.config.get('prep')['unique_thr']:
-                    self.logger.info(f"{col}: 범주형으로 분류 (적은 유니크값)")
-                    categorical_features.append(col)
-                else:
-                    self.logger.info(f"{col}: 수치형으로 분류")
-                    numerical_features.append(col)
-            else:
-                if self._is_numeric_convertible(df[col]):
-                    self.logger.info(f"{col}: 숫자형 변환 가능")
-                    temp_series = df[col].copy()
-                    non_null_mask = temp_series.notna()
-                    temp_series.loc[non_null_mask] = pd.to_numeric(temp_series[non_null_mask], errors='coerce') #errors='coerce' will transform string values to NaN, that can then be replaced if desired
-                    
-                    unique_ratio = temp_series.nunique() / len(df)
-                    if unique_ratio < self.config.get('prep')['unique_thr']:
-                        categorical_features.append(col)
-                    else:
-                        numerical_features.append(col)
-                else:
-                    categorical_features.append(col)
+                for metric in numeric_cols:
+                    if metric in before_profile.loc[col] and metric in after_profile.loc[col]:
+                        before_val = before_profile.loc[col, metric]
+                        after_val = after_profile.loc[col, metric]
+                        changes.loc[col, f'{metric}_change'] = after_val - before_val
         
-        self.logger.info("\n=== 최종 결과 ===")
-        self.logger.info(f"수치형 피처: {len(numerical_features)}\n{numerical_features}")
-        self.logger.info(f"범주형 피처: {len(categorical_features)}\n{categorical_features}")
-        self.config['data']['numerical_features'] = numerical_features
-        self.config['data']['categorical_features'] = categorical_features
-        return numerical_features, categorical_features
+        # 결과 저장 및 출력
+        comparison_path = os.path.join(self.out_path, 'data_prep_comparison_baseline.csv')
+        changes_path = os.path.join(self.out_path, 'data_prep_changes_baseline.csv')
+        comparison.to_csv(comparison_path)
+        changes.to_csv(changes_path)
+        
+        # 결과 출력
+        self.logger.info('\n=== Data Preparation Comparison ===')
+        self.logger.info('\nBefore vs After Statistics:')
+        self.logger.info(f'\n{comparison}')
+        self.logger.info('\nKey Changes:')
+        self.logger.info(f'\n{changes}')
+        
+        self.logger.info('#### Data Prep ends...')
+        return concat
 
-    
-    def handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
-        """결측치 처리"""
-        df_processed = df.copy()
+        return concat
+    @staticmethod
+    def get_data_profile(df: pd.DataFrame, stage: str = "before") -> pd.DataFrame:
+        """데이터프레임의 주요 특성을 분석하여 프로파일 생성"""
+        profile = {}
         
-        # 결측치가 많은 컬럼 제거
-        missing_ratio = df_processed.isnull().sum() / len(df_processed)
-        cols_to_drop = missing_ratio[
-            missing_ratio > self.config['prep']['missing_thr']
-        ].index
-        df_processed = df_processed.drop(columns=cols_to_drop)
-        
-        # 수치형 변수: 중앙값으로 대체
-        numerical_features = self.config['data']['numerical_features']
-        for col in numerical_features:
-            if col in df_processed.columns:
-                df_processed[col].fillna(df_processed[col].median(), 
-                                      inplace=True)
-        
-        # 범주형 변수: 최빈값으로 대체
-        categorical_features = self.config['data']['categorical_features']
-        for col in categorical_features:
-            if col in df_processed.columns:
-                df_processed[col].fillna(df_processed[col].mode()[0], 
-                                      inplace=True)
-                
-        return df_processed
-    def handle_outliers(self, df: pd.DataFrame) -> pd.DataFrame:
-        """이상치 처리 (IQR 방식)"""
-        df_processed = df.copy()
-        numerical_features = self.config['data']['numerical_features']
-        
-        for col in numerical_features:
-            if col in df_processed.columns:
-                Q1 = df_processed[col].quantile(0.25)
-                Q3 = df_processed[col].quantile(0.75)
+        for col in df.columns:
+            stats = {
+                'type': str(df[col].dtype),
+                'missing_count': df[col].isnull().sum(),
+                'missing_ratio': (df[col].isnull().sum() / len(df)) * 100,
+                'unique_count': df[col].nunique(),
+                'unique_ratio': (df[col].nunique() / len(df)) * 100
+            }
+            
+            if pd.api.types.is_numeric_dtype(df[col]):
+                # 수치형 변수 통계
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
                 IQR = Q3 - Q1
-                threshold = self.config['prep']['outlier_thr']
+                outliers = df[(df[col] < Q1 - 1.5*IQR) | (df[col] > Q3 + 1.5*IQR)]
                 
-                lower_bound = Q1 - threshold * IQR
-                upper_bound = Q3 + threshold * IQR
+                stats.update({
+                    'mean': df[col].mean(),
+                    'std': df[col].std(),
+                    'min': df[col].min(),
+                    'max': df[col].max(),
+                    'outlier_count': len(outliers),
+                    'outlier_ratio': (len(outliers) / len(df)) * 100
+                })
+            else:
+                # 범주형 변수 통계
+                stats.update({
+                    'most_common': df[col].mode().iloc[0] if not df[col].empty else None,
+                    'most_common_ratio': (df[col].value_counts().iloc[0] / len(df)) * 100 if not df[col].empty else 0
+                })
                 
-                # 이상치를 경계값으로 대체
-                df_processed.loc[df_processed[col] < lower_bound, col] = lower_bound
-                df_processed.loc[df_processed[col] > upper_bound, col] = upper_bound
-                
-        return df_processed
+            profile[col] = stats
         
-    def encode_categorical_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """범주형 변수 인코딩"""
-        df_processed = df.copy()
-        categorical_features = self.config['data']['categorical_features']
+        return pd.DataFrame.from_dict(profile, orient='index')
+
+    def _load_data_concat_train_test(self):
+
+        try:
+            # 데이터 로드
+            dt = pd.read_csv(self.train_path)
+            dt_test = pd.read_csv(self.test_path)
+            
+            # 데이터 합치기
+            concat = pd.concat([dt, dt_test], axis=0).reset_index(drop=True)
+            
+            self.logger.info(f'데이터 로드 완료: {concat.shape}')
+            # Train data와 Test data shape은 아래와 같습니다.
+            self.logger.info(f'Train data shape : {dt.shape}, Test data shape : {dt_test.shape}\n{dt.head(1)}\n{dt_test.head(1)}')
+            # Train과 Test data를 살펴보겠습니다.
+            # train/test 구분을 위한 칼럼을 하나 만들어 줍니다.
+            dt['is_test'] = 0
+            dt_test['is_test'] = 1
+            self.logger.info('is_test column added to train and test data.\nConcat train and test data.')
+            concat = pd.concat([dt, dt_test])     # 하나의 데이터로 만들어줍니다.
+            concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
+            # 칼럼 이름을 쉽게 바꿔주겠습니다. 다른 칼럼도 사용에 따라 바꿔주셔도 됩니다!
+            concat = concat.rename(columns={'전용면적(㎡)':'전용면적'})
+            self.logger.info(f'Concat data shape : {concat.shape}\n{concat.head(1)}')
+            self.logger.info(f'Column name converted from 전용면적(㎡) to 전용면적 : {concat.columns}')
+            self.logger.info('#### End Data Prep.. ')
+            return concat
+            
+        except Exception as e:
+            self.logger.error(f'데이터 로드 중 오류 발생: {str(e)}')
+            return None
         
-        for col in categorical_features:
-            if col in df_processed.columns:
-                if col not in self.label_encoders:
-                    self.label_encoders[col] = LabelEncoder()
-                    df_processed[col] = self.label_encoders[col].fit_transform(
-                        df_processed[col]
-                    )
-                else:
-                    df_processed[col] = self.label_encoders[col].transform(
-                        df_processed[col]
-                    )
-                    
-        return df_processed
+    ##### Null / Outlier
+    def _null_prep(self, concat):
+        # 실제로 결측치라고 표시는 안되어있지만 아무 의미도 갖지 않는 element들이 아래와 같이 존재합니다.
+        # 아래 3가지의 경우 모두 아무 의미도 갖지 않는 element가 포함되어 있습니다.
+        self.logger.info('### Null Prep.. ')
+        self.logger.info(f'아래 3가지의 경우 모두 아무 의미도 갖지 않는 element가 포함되어 있습니다.\n{concat["등기신청일자"].value_counts()}')
+        self.logger.info(f'{concat["거래유형"].value_counts()}')
+        self.logger.info(f'{concat["중개사소재지"].value_counts()}')
+
+        self.logger.info('위 처럼 아무 의미도 갖지 않는 칼럼은 결측치와 같은 역할을 하므로, np.nan으로 채워 결측치로 인식되도록 합니다.')
+        concat['등기신청일자'] = concat['등기신청일자'].replace(' ', np.nan)
+        concat['거래유형'] = concat['거래유형'].replace('-', np.nan)
+        concat['중개사소재지'] = concat['중개사소재지'].replace('-', np.nan)
+        return concat
+    
+    def _null_check(self, concat):
+        # EDA에 앞서 결측치를 확인해보겠습니다.
+        self.logger.info('### Null Check.. ')
+        self.logger.info('결측치 확인')
+        self.logger.info(concat.isnull().sum())
+        # 변수별 결측치의 비율을 plot으로 그려보면 아래 같습니다.
+        fig = plt.figure(figsize=(13, 2))
+        missing = concat.isnull().sum() / concat.shape[0]
+        missing = missing[missing > 0]
+        missing.sort_values(inplace=True)
+        missing.plot.bar(color='orange')
+        title='변수별 결측치 비율'
+        plt.title(title)
+        plt.savefig(get_unique_filename(os.path.join(self.out_path, title +'.png')), dpi=300, bbox_inches='tight')
+        
+        plt.show(block=False)
+        plt.pause(self.time_delay)  # 5초 동안 그래프 표시
+        plt.close()
+        
+    def _remove_null(self, concat):
+        """결측치가 특정 비율 이상인 컬럼 제거"""
+        # 각 컬럼별 결측치 비율 계산 (전체 행 수 대비)
+        ratio_null = concat.isnull().sum() / len(concat)
+        
+        # threshold 기준으로 컬럼 필터링
+        columns_to_keep = ratio_null[ratio_null <= self.thr_ratio_null].index
+        columns_to_drop = ratio_null[ratio_null > self.thr_ratio_null].index
+        
+        # 로깅
+        self.logger.info(f'* 결측치 비율이 {self.thr_ratio_null*100}% 이하인 변수들: {list(columns_to_keep)}')
+        self.logger.info(f'* 결측치 비율이 {self.thr_ratio_null*100}% 초과인 변수들: {list(columns_to_drop)}')
+        
+        # 선택된 컬럼만 반환
+        return concat[columns_to_keep]
+
+    def _interpolation(self, concat_select):
+        # Interpolation
+        self.logger.info('#### Interpolation starts...\n연속형 변수는 선형보간을 해주고, 범주형변수는 알수없기에 “unknown”이라고 임의로 보간해 주겠습니다.')
+        self.logger.info('본번, 부번의 경우 float로 되어있지만 범주형 변수의 의미를 가지므로 object(string) 형태로 바꾸어주고 아래 작업을 진행하겠습니다.')
+        concat_select['본번'] = concat_select['본번'].astype('str')
+        concat_select['부번'] = concat_select['부번'].astype('str')
+        # 먼저, 연속형 변수와 범주형 변수를 위 info에 따라 분리해주겠습니다.
+        continuous_columns = []
+        categorical_columns = []
+        for column in concat_select.columns:
+            if pd.api.types.is_numeric_dtype(concat_select[column]):
+                continuous_columns.append(column)
+            else:
+                categorical_columns.append(column)
+        self.logger.info(f"연속형 변수: {continuous_columns}")
+        self.logger.info(f"범주형 변수: {categorical_columns}")
+        # 범주 변수에 대한 보간
+        concat_select[categorical_columns] = concat_select[categorical_columns].fillna('NULL')
+        # 연속형 변수에 대한 보간 (선형 보간)
+        concat_select[continuous_columns] = concat_select[continuous_columns].interpolate(method='linear', axis=0)
+        self.logger.info('결측치가 보간된 모습을 확인해봅니다.')
+        self.logger.info(concat_select.isnull().sum())
+
+        # 이상치 제거 이전의 shape은 아래와 같습니다.
+        self.logger.info(concat_select.shape)
+        # 대표적인 연속형 변수인 “전용 면적” 변수 관련한 분포를 먼저 살펴보도록 하겠습니다.
+        fig = plt.figure(figsize=(7, 3))
+        try:
+            sns.boxplot(data = concat_select, x = '전용면적(m)', color='lightgreen')
+        except:
+            sns.boxplot(data = concat_select, x = '전용면적', color='lightgreen')
+
+        title = '전용면적 분포'
+        plt.title(title)
+        plt.xlabel('Area')
+        plt.show(block=False)
+        plt.pause(self.time_delay)  # 5초 동안 그래프 표시
+        plt.close()
+        plt.savefig(get_unique_filename(os.path.join(self.out_path, title +'.png')), dpi=300, bbox_inches='tight')
+        return concat_select
+
+    # 이상치 제거 방법에는 IQR을 이용하겠습니다.
+    @staticmethod
+    def remove_outliers_iqr(dt, column_name):
+        df = dt.query('is_test == 0')       # train data 내에 있는 이상치만 제거하도록 하겠습니다.
+        df_test = dt.query('is_test == 1')
+
+        Q1 = df[column_name].quantile(0.25)
+        Q3 = df[column_name].quantile(0.75)
+        IQR = Q3 - Q1
+
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+
+        df = df[(df[column_name] >= lower_bound) & (df[column_name] <= upper_bound)]
+
+        result = pd.concat([df, df_test])   # test data와 다시 합쳐주겠습니다.
+        return result
