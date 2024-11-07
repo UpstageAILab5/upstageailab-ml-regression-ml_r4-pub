@@ -45,7 +45,7 @@ def main_sweep():
     y_test = prep_data.get('y_val')
     cont_col = prep_data.get('continuous_columns')
     cat_col = prep_data.get('categorical_columns')
-    cols = ['계약년', '전용면적', '강남여부', '구', '건축년도', '좌표X', '좌표Y', '동']+['층', 'k-전체동수', 'k-전체세대수', '주차대수'] +['신축여부', 'distance_sum_subway', 'distance_sum_bus']
+    #cols = ['계약년', '전용면적', '강남여부', '구', '건축년도', '좌표X', '좌표Y', '동']+['층', 'k-전체동수', 'k-전체세대수', '주차대수'] +['신축여부', 'distance_sum_subway', 'distance_sum_bus']
 
     print(X_train.head(3), X_test.head(3), y_train.head(3), y_test.head(3))
     
@@ -86,8 +86,8 @@ def main_sweep():
     # 차원 확인
     # print(f"X_train shape: {X_train.shape}")
     # print(f"y_train shape: {y_train.shape}")
-    X_train = X_train[cols]
-    X_test = X_test[cols]
+    # X_train = X_train[cols]
+    # X_test = X_test[cols]
 
     if isinstance(X_train, pd.DataFrame):
         X_train = X_train.values
@@ -113,8 +113,8 @@ def main_sweep():
     # 데이터셋과 모델 조합에 대해 스위프 실행
     dataset_name = 'baseline'
     run_sweep_for_model_and_dataset(dataset_name, X_train, y_train, X_test, y_test, count)
-    dataset_name = 'k_fold_cross_val'
-    run_sweep_for_model_and_dataset(dataset_name, X_train, y_train, X_test, y_test, count)
+    # dataset_name = 'k_fold_cross_val'
+    # run_sweep_for_model_and_dataset(dataset_name, X_train, y_train, X_test, y_test, count)
 
 main_sweep()
 
