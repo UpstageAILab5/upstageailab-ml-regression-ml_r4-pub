@@ -1,7 +1,6 @@
 
 from pathlib import Path
 import os
-
 # import pygwalker as pyg
 # import dabl
 import pandas as pd
@@ -83,71 +82,71 @@ def main():
     prep_path = os.path.join(base_path, 'data', 'processed')
     path_baseline = os.path.join(prep_path, 'df_baseline_prep.csv')
     path_feat = os.path.join(prep_path, 'df_feat.csv')
-# import matplotlib.pyplot as plt
-# import matplotlib.font_manager as fm
-logger_instance = Logger()
-logger = logger_instance.logger
-# setup_matplotlib_korean(logger)
-########################################################################################################################################
-import matplotlib.pyplot as plt
-import platform
-from src.utils import get_unique_filename
-# 운영체제 확인 후 폰트 설정
-if platform.system() == 'Windows':
-    plt.rc('font', family='Malgun Gothic')  # Windows
-elif platform.system() == 'Darwin':          # Mac
-    plt.rc('font', family='AppleGothic')
-else:
-    plt.rc('font', family='NanumGothic')    # Linux
-# 마이너스 기호 깨짐 방지
-plt.rc('axes', unicode_minus=False)
-# 테스트
-# plt.figure(figsize=(3, 1))
-# plt.text(0.5, 0.5, '한글 테스트', ha='center', va='center')
-# plt.axis('off')
-# plt.show()
-base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
-##Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
-# setup_matplotlib_korean(logger)
-#Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
-out_path = os.path.join(base_path,'output')
-config ={   
-        'out_path':out_path,
-        'base_path':base_path,
-        'subway_feature': os.path.join(base_path, 'data','subway_feature.csv'),
-        'bus_feature': os.path.join(base_path, 'data','bus_feature.csv'),
-         'logger': logger,
-         'random_seed': 2024,
-         'target': 'target',
-         'thr_ratio_outlier': 0.01,
-         'thr_ratio_null': 0.9,
-         'wandb': {
-            'project': 'project-regression_house_price',     # 필수: wandb 프로젝트명
-            'entity': 'joon',          # 필수: wandb 사용자/조직명
-           # 'name': 'run-name',            # 선택: 실험 실행 이름 (지정하지 않으면 자동 생성)
-            'group': 'group-ml4',    # 선택: 실험 그룹명
-            #'tags': ['tag1', 'tag2'],      # 선택: 실험 태그
-            #'notes': 'experiment notes'     # 선택: 실험 노트
-    }}
-# walker = pyg.walk(
-#     df,
-#     spec="./chart_meta_0.json",    # this json file will save your chart state, you need to click save button in ui mannual when you finish a chart, 'autosave' will be supported in the future.
-#     kernel_computation=True,          # set `kernel_computation=True`, pygwalker will use duckdb as computing engine, it support you explore bigger dataset(<=100GB).
-# )
-########################################################################################################################################
-### Data Prep
-data_prep = DataPrep(config)
-eda = EDA(config)
-feat_eng = FeatureEngineer(config)
-clustering = Clustering(config)
-clustering_analysis = ClusteringAnalysis(config)
-model = Model(config)
-visualizer = Visualizer(config)
-########################################################################################################################################
-### EDA
-prep_path = os.path.join(base_path, 'data', 'processed')
-path_baseline = os.path.join(prep_path, 'df_baseline_prep.csv')
-path_feat = os.path.join(prep_path, 'df_feat.csv')
+    # import matplotlib.pyplot as plt
+    # import matplotlib.font_manager as fm
+    logger_instance = Logger()
+    logger = logger_instance.logger
+    # setup_matplotlib_korean(logger)
+    ########################################################################################################################################
+    import matplotlib.pyplot as plt
+    import platform
+    from src.utils import get_unique_filename
+    # 운영체제 확인 후 폰트 설정
+    if platform.system() == 'Windows':
+        plt.rc('font', family='Malgun Gothic')  # Windows
+    elif platform.system() == 'Darwin':          # Mac
+        plt.rc('font', family='AppleGothic')
+    else:
+        plt.rc('font', family='NanumGothic')    # Linux
+    # 마이너스 기호 깨짐 방지
+    plt.rc('axes', unicode_minus=False)
+    # 테스트
+    # plt.figure(figsize=(3, 1))
+    # plt.text(0.5, 0.5, '한글 테스트', ha='center', va='center')
+    # plt.axis('off')
+    # plt.show()
+    base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
+    ##Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
+    # setup_matplotlib_korean(logger)
+    #Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
+    out_path = os.path.join(base_path,'output')
+    config ={   
+            'out_path':out_path,
+            'base_path':base_path,
+            'subway_feature': os.path.join(base_path, 'data','subway_feature.csv'),
+            'bus_feature': os.path.join(base_path, 'data','bus_feature.csv'),
+            'logger': logger,
+            'random_seed': 2024,
+            'target': 'target',
+            'thr_ratio_outlier': 0.01,
+            'thr_ratio_null': 0.9,
+            'wandb': {
+                'project': 'project-regression_house_price',     # 필수: wandb 프로젝트명
+                'entity': 'joon',          # 필수: wandb 사용자/조직명
+            # 'name': 'run-name',            # 선택: 실험 실행 이름 (지정하지 않으면 자동 생성)
+                'group': 'group-ml4',    # 선택: 실험 그룹명
+                #'tags': ['tag1', 'tag2'],      # 선택: 실험 태그
+                #'notes': 'experiment notes'     # 선택: 실험 노트
+        }}
+    # walker = pyg.walk(
+    #     df,
+    #     spec="./chart_meta_0.json",    # this json file will save your chart state, you need to click save button in ui mannual when you finish a chart, 'autosave' will be supported in the future.
+    #     kernel_computation=True,          # set `kernel_computation=True`, pygwalker will use duckdb as computing engine, it support you explore bigger dataset(<=100GB).
+    # )
+    ########################################################################################################################################
+    ### Data Prep
+    data_prep = DataPrep(config)
+    eda = EDA(config)
+    feat_eng = FeatureEngineer(config)
+    clustering = Clustering(config)
+    clustering_analysis = ClusteringAnalysis(config)
+    model = Model(config)
+    visualizer = Visualizer(config)
+    ########################################################################################################################################
+    ### EDA
+    prep_path = os.path.join(base_path, 'data', 'processed')
+    path_baseline = os.path.join(prep_path, 'df_baseline_prep.csv')
+    path_feat = os.path.join(prep_path, 'df_feat.csv')
 
     path_auto = os.path.join(prep_path, 'df_auto_prep.csv')
     path_feat_add = os.path.join(prep_path, 'df_feat_add.csv')
