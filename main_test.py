@@ -166,7 +166,6 @@ def main():
         # df, cols = feat_add.distance_analysis_optimized(
         #     df, subway_feature, df_coor, subway_coor, radius=500, target='subway'
         # )
-
         # 2. BallTree 방식 (더 빠르지만 메모리 많이 사용)
         concat, subway_cols = feat_add.distance_analysis_balltree(
             concat, subway_feature, df_coor, subway_coor, radius=500, target='subway'
@@ -176,14 +175,22 @@ def main():
         logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
         #df.drop(df.columns[0], axis=1, inplace=True)
         concat.to_csv(path_feat_add)
-
     else:
         logger.info('>>>>feat add 존재. Loading...')
         concat = pd.read_csv(path_feat_add)
-    ########################################################################################################################################
-    cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + subway_cols + bus_cols
-    ## Feature Add 2. Clustering
+        subway_cols = [col for col in concat.columns if 'subway' in col.lower()]
+        bus_cols = [col for col in concat.columns if 'bus' in col.lower()]
 
+    transport_cols = subway_cols + bus_cols
+    ##### Column cleaning
+    unnamed_cols = [col for col in concat.columns if 'Unnamed' in col]
+    if unnamed_cols:
+        logger.info(f"Removing unnamed columns: {unnamed_cols}")
+        concat = concat.drop(columns=unnamed_cols)
+    ########################################################################################################################################
+    cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + transport_cols
+    ## Feature Add 2. Clustering
+    logger.info(f'Clustering 대상 컬럼 : {cols}')
     path_feat_add_cluster = os.path.join(prep_path, 'df_feat_add_cluster.csv')
     if not os.path.exists(path_feat_add_cluster):
         logger.info('>>>>Clustering 시작...')
