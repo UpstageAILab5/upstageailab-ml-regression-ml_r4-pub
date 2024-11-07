@@ -19,7 +19,6 @@ from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from sklearn.neighbors import BallTree
 
 class XAI:
     def __init__(self, config):
@@ -66,171 +65,159 @@ class FeatureAdditional:
     def __init__(self, config):
         self.config = config
         self.logger = config.get('logger')
-    
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_distances(building_coords, subway_coords, radius):
-        """Numba로 최적화된 거리 계산"""
-        n_buildings = len(building_coords)
-        n_subways = len(subway_coords)
+    def distance_analysis(self, df, subway_feature, df_coor, subway_coor, radius, target):
+        """
+        최적화된 거리 분석 수행
+        """
+        self.logger.info(f"### {target} 거리 분석 시작")
         
-        counts = np.zeros(n_buildings, dtype=np.int32)
-        shortest = np.full(n_buildings, np.inf)
-        avg_distances = np.zeros(n_buildings)
+        # 좌표계 변환기 설정
+        transformer = Transformer.from_crs(
+            "EPSG:5181",
+            "EPSG:4326",
+            always_xy=True
+        )
         
-        for i in range(n_buildings):
-            distances = np.zeros(n_subways)
-            count = 0
-            sum_dist = 0.0
-            
-            for j in range(n_subways):
-                # Haversine 거리 계산
-                lat1, lon1 = building_coords[i]
-                lat2, lon2 = subway_coords[j]
-                
-                dlat = np.radians(lat2 - lat1)
-                dlon = np.radians(lon2 - lon1)
-                lat1, lat2 = np.radians(lat1), np.radians(lat2)
-                
-                a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
-                c = 2 * np.arcsin(np.sqrt(a))
-                dist = 6371000 * c  # 미터 단위
-                
-                distances[j] = dist
-                if dist <= radius:
-                    count += 1
-                    sum_dist += dist
-                
-                shortest[i] = min(shortest[i], dist)
-            
-            counts[i] = count
-            avg_distances[i] = sum_dist / count if count > 0 else radius
-            
-        return counts, shortest, avg_distances
-
-    def distance_analysis_optimized(self, df, subway_feature, df_coor, subway_coor, radius, target):
-        """최적화된 거리 분석 - BallTree, Numba, 병렬처리 조합"""
-        self.logger.info(f"### {target} 거리 분석 시작 (최적화 버전)")
-        
-        # 좌표 변환기 설정
-        transformer = Transformer.from_crs("EPSG:5181", "EPSG:4326", always_xy=True)
-        
-        # 좌표 변환 (벡터화)
+        # 모든 좌표를 한 번에 변환 (벡터화)
         subway_points = subway_feature[[subway_coor['x'], subway_coor['y']]].values
         building_points = df[[df_coor['x'], df_coor['y']]].values
         
-        # 벡터화된 변환
-        self.logger.info("좌표 변환 중...")
-        subway_transformed = np.array([transformer.transform(x, y) for x, y in tqdm(subway_points)])
-        building_transformed = np.array([transformer.transform(x, y) for x, y in tqdm(building_points)])
+        # 벡터화된 좌표 변환
+        subway_transformed = np.array([transformer.transform(x, y) for x, y in subway_points])
+        building_transformed = np.array([transformer.transform(x, y) for x, y in building_points])
         
-        # 위도/경도 순서 변경
-        subway_transformed = np.column_stack((subway_transformed[:, 1], subway_transformed[:, 0]))
-        building_transformed = np.column_stack((building_transformed[:, 1], building_transformed[:, 0]))
+        # KD-Tree 구성
+        tree = cKDTree(subway_transformed)
         
-        # 청크로 분할
-        n_cores = multiprocessing.cpu_count()
-        chunk_size = max(1000, len(df) // (n_cores * 2))
-        chunks = np.array_split(building_transformed, len(df) // chunk_size + 1)
-        
-        self.logger.info(f"총 {len(chunks)}개 청크로 처리 시작...")
-        
-        # 병렬 처리
-        results = []
-        with ProcessPoolExecutor(max_workers=n_cores) as executor:
-            futures = [
-                executor.submit(
-                    self._calculate_distances,
-                    chunk,
-                    subway_transformed,
-                    radius
-                ) for chunk in chunks
-            ]
-            
-            for future in tqdm(as_completed(futures), total=len(futures), desc="거리 계산"):
-                chunk_counts, chunk_shortest, chunk_avg = future.result()
-                results.append((chunk_counts, chunk_shortest, chunk_avg))
-        
-        # 결과 병합
-        counts = np.concatenate([r[0] for r in results])
-        shortest = np.concatenate([r[1] for r in results])
-        avg_distances = np.concatenate([r[2] for r in results])
-        
-        # 데이터프레임에 결과 추가
+        # 새로운 컬럼명들
         count_col = f'{target}_near_{radius}m_count'
         avg_col = f'{target}_avg_distance'
         short_col = f'{target}_shortest_distance'
         
-        df[count_col] = counts
-        df[short_col] = shortest
+        # 거리 계산 (KD-Tree 사용)
+        distances, _ = tree.query(building_transformed, k=len(subway_transformed))
+        
+        # 결과 계산 (벡터화)
+        df[count_col] = np.sum(distances <= radius, axis=1)
+        df[short_col] = np.min(distances, axis=1)
+        
+        # 평균 거리 계산
+        mask = distances <= radius
+        avg_distances = np.where(
+            np.any(mask, axis=1),
+            np.sum(distances * mask, axis=1) / np.sum(mask, axis=1),
+            radius
+        )
         df[avg_col] = avg_distances
         
+        self.logger.info(f"거리 분석 완료: {count_col}, {avg_col}, {short_col} 컬럼 생성")
+        
         # 통계 출력
-        for col in [count_col, avg_col, short_col]:
+        for col in tqdm([count_col, avg_col, short_col]):
             stats = df[col].describe()
             self.logger.info(f"\n{col} 통계:\n{stats}")
         
         return df, [count_col, avg_col, short_col]
+    
+    def parallel_distance_calc(self, chunk, subway_feature, df_coor, subway_coor, radius, target):
+        """단일 청크에 대한 거리 계산"""
+        transformer = Transformer.from_crs(
+            "EPSG:5181",
+            "EPSG:4326",
+            always_xy=True
+        )
+        
+        # 지하철 좌표 변환
+        subway_coords = []
+        self.logger.info(f"청크 크기: {len(chunk)}, 지하철 수: {len(subway_feature)}")
+        
+        for _, row in subway_feature.iterrows():
+            x, y = transformer.transform(
+                row[subway_coor['x']], 
+                row[subway_coor['y']]
+            )
+            subway_coords.append((y, x))
+        
+        results = []
+        # 청크 내 각 행에 대한 진행상황 표시
+        for idx, row in tqdm(chunk.iterrows(), 
+                            total=len(chunk), 
+                            desc=f"청크 내 처리 ({len(chunk)}개)",
+                            position=1,
+                            leave=False):
+            # 건물 좌표 변환
+            x1, y1 = transformer.transform(
+                row[df_coor['x']], 
+                row[df_coor['y']]
+            )
+            
+            # 거리 계산
+            distances = [geodesic((y1, x1), coord).meters for coord in subway_coords]
+            
+            # 결과 저장
+            results.append({
+                'idx': idx,
+                'count': sum(1 for d in distances if d <= radius),
+                'avg': np.mean([d for d in distances if d <= radius]) if any(d <= radius for d in distances) else radius,
+                'shortest': min(distances)
+            })
+            
+        return results
 
-    def distance_analysis_balltree(self, df, subway_feature, df_coor, subway_coor, radius, target):
-        """BallTree를 사용한 빠른 거리 분석"""
-        self.logger.info(f"### {target} 거리 분석 시작 (BallTree)")
+    def distance_analysis_parallel(self, df, subway_feature, df_coor, subway_coor, radius, target):
+        """병렬 처리를 사용한 거리 분석"""
+        self.logger.info(f"### {target} 거리 분석 시작 (병렬 처리)")
         
-        transformer = Transformer.from_crs("EPSG:5181", "EPSG:4326", always_xy=True)
-        
-        # 좌표 변환 (벡터화)
-        subway_points = subway_feature[[subway_coor['x'], subway_coor['y']]].values
-        building_points = df[[df_coor['x'], df_coor['y']]].values
-        
-        self.logger.info("좌표 변환 중...")
-        subway_transformed = np.array([transformer.transform(x, y) for x, y in tqdm(subway_points)])
-        building_transformed = np.array([transformer.transform(x, y) for x, y in tqdm(building_points)])
-        
-        # BallTree 구성
-        tree = BallTree(np.radians(subway_transformed), metric='haversine')
-        
-        # 반경 변환 (미터 -> 라디안)
-        radius_rad = radius / 6371000  # 지구 반경으로 나누어 라디안으로 변환
-        
-        self.logger.info("거리 계산 중...")
-        # 반경 내 이웃 찾기
-        counts = tree.query_radius(
-            np.radians(building_transformed), 
-            r=radius_rad, 
-            count_only=True
-        )
-        
-        # 최단 거리 계산
-        distances, _ = tree.query(
-            np.radians(building_transformed), 
-            k=1, 
-            return_distance=True
-        )
-        
-        # 미터 단위로 변환
-        distances = distances * 6371000
-        
-        # 컬럼 생성
+        # 컬럼명 정의
         count_col = f'{target}_near_{radius}m_count'
-        short_col = f'{target}_shortest_distance'
         avg_col = f'{target}_avg_distance'
+        short_col = f'{target}_shortest_distance'
         
-        df[count_col] = counts
-        df[short_col] = distances.flatten()
+        # CPU 코어 수 확인 및 청크 분할
+        n_cores = multiprocessing.cpu_count()
+        chunk_size = len(df) // (n_cores * 2)  # 더 작은 청크로 분할
+        chunks = [df.iloc[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
         
-        # 평균 거리 계산
-        self.logger.info("평균 거리 계산 중...")
-        avg_distances = []
-        for i in tqdm(range(len(building_transformed))):
-            dists = tree.query_radius(
-                np.radians(building_transformed[i:i+1]), 
-                r=radius_rad, 
-                return_distance=True
-            )[0][0] * 6371000
-            avg_distances.append(np.mean(dists) if len(dists) > 0 else radius)
+        self.logger.info(f"총 청크 수: {len(chunks)}, 청크당 크기: {chunk_size}")
         
-        df[avg_col] = avg_distances
+        # 병렬 처리
+        all_results = []
+        with ProcessPoolExecutor(max_workers=n_cores) as executor:
+            futures = [
+                executor.submit(
+                    self.parallel_distance_calc, 
+                    chunk, 
+                    subway_feature, 
+                    df_coor, 
+                    subway_coor, 
+                    radius, 
+                    target
+                ) for chunk in chunks
+            ]
+            
+            # 전체 진행상황 표시
+            for future in tqdm(as_completed(futures), 
+                             total=len(futures),
+                             desc=f"전체 청크 처리 ({len(chunks)}개)",
+                             position=0):
+                try:
+                    results = future.result()
+                    all_results.extend(results)
+                    self.logger.info(f"청크 완료: {len(results)}개 처리됨")
+                except Exception as e:
+                    self.logger.error(f"청크 처리 중 오류 발생: {str(e)}")
         
+        # 결과를 데이터프레임에 적용
+        self.logger.info("결과 데이터프레임 업데이트 중...")
+        for result in tqdm(all_results, 
+                          desc="결과 업데이트",
+                          position=0):
+            idx = result['idx']
+            df.loc[idx, count_col] = result['count']
+            df.loc[idx, avg_col] = result['avg']
+            df.loc[idx, short_col] = result['shortest']
+        
+        self.logger.info(f"거리 분석 완료: {count_col}, {avg_col}, {short_col} 컬럼 생성")
         return df, [count_col, avg_col, short_col]
     
 #     주요 최적화 포인트:

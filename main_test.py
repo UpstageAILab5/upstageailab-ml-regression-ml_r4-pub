@@ -143,9 +143,17 @@ def main():
         logger.info('is_test column added to train and test data.\nConcat train and test data.')
         concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
         concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
-        # 칼럼 이름을 쉽게 바꿔주겠습니다. 다른 칼럼도 사용에 따라 바꿔주셔도 됩니다!
-        concat, subway_cols = feat_add.distance_analysis_parallel(concat, subway_feature, df_coor, subway_coor, 500, 'subway')
-        concat, bus_cols = feat_add.distance_analysis_parallel(concat, bus_feature, df_coor, bus_coor, 500, 'bus')
+            # 1. Numba + 병렬처리 조합 (메모리 효율적)
+        # df, cols = feat_add.distance_analysis_optimized(
+        #     df, subway_feature, df_coor, subway_coor, radius=500, target='subway'
+        # )
+
+        # 2. BallTree 방식 (더 빠르지만 메모리 많이 사용)
+        concat, subway_cols = feat_add.distance_analysis_balltree(
+            concat, subway_feature, df_coor, subway_coor, radius=500, target='subway'
+        )
+        #concat, subway_cols = feat_add.distance_analysis_parallel(concat, subway_feature, df_coor, subway_coor, 500, 'subway')
+        concat, bus_cols = feat_add.distance_analysis_balltree(concat, bus_feature, df_coor, bus_coor, 500, 'bus')
         logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
         #df.drop(df.columns[0], axis=1, inplace=True)
         concat.to_csv(path_feat_add)

@@ -13,11 +13,6 @@ from kneed import KneeLocator
 from typing import Tuple, List
 import os
 import json
-from concurrent.futures import ProcessPoolExecutor
-import multiprocessing
-from numba import jit
-import warnings
-warnings.filterwarnings('ignore')
 
 class Clustering:
     def __init__(self, config):
@@ -103,127 +98,128 @@ class ClusteringAnalysis:
         self.time_delay = config.get('time_delay', 3)
         self.logger = config.get('logger')
         self.out_path = config.get('out_path', 'output')
-        self.n_jobs = min(multiprocessing.cpu_count(), 8)  # 병렬 처리 코어 수 제한
-    
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_distances_numba(X: np.ndarray) -> np.ndarray:
-        """Numba로 최적화된 거리 계산"""
-        n_samples = X.shape[0]
-        distances = np.zeros((n_samples, n_samples))
-        for i in range(n_samples):
-            for j in range(i + 1, n_samples):
-                dist = np.sqrt(np.sum((X[i] - X[j]) ** 2))
-                distances[i, j] = distances[j, i] = dist
-        return distances
-
+        
     def find_optimal_dbscan_params(self, df: pd.DataFrame, 
-                                 features: List[str],
-                                 min_samples_range: range = range(2, 10),
-                                 n_neighbors: int = 5) -> Tuple[float, int]:
-        """최적화된 DBSCAN 파라미터 탐색"""
-        # 데이터 전처리 (벡터화)
+                                   features: List[str],
+                                   min_samples_range: range = range(2, 10),
+                                   n_neighbors: int = 5) -> Tuple[float, int]:
+        """
+        DBSCAN의 최적 파라미터(eps, min_samples)를 찾는 함수
+        
+        Parameters:
+        df: 데이터프레임
+        features: 클러스터링에 사용할 특성들의 리스트
+        min_samples_range: min_samples 탐색 범위
+        n_neighbors: k-distance 그래프를 위한 이웃 수
+        
+        Returns:
+        Tuple[float, int]: 최적의 (eps, min_samples) 값
+        """
+        # 데이터 전처리
         X = df[features].copy()
-        X = X.apply(pd.to_numeric, errors='coerce')
+        for col in features:
+            if isinstance(X[col].iloc[0], str):
+                X[col] = X[col].str.replace(',', '').astype(float)
         
         # 스케일링
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
         
-        # 병렬 처리로 eps 값 찾기
-        optimal_eps = self._find_optimal_eps_parallel(X_scaled, n_neighbors)
+        # eps 값 찾기
+        optimal_eps = self._find_optimal_eps(X_scaled, n_neighbors)
         
-        # 병렬 처리로 min_samples 값 찾기
-        optimal_min_samples = self._find_optimal_min_samples_parallel(
+        # min_samples 값 찾기
+        optimal_min_samples = self._find_optimal_min_samples(
             X_scaled, optimal_eps, min_samples_range)
         
-        self.logger.info(f"최적 파라미터 - eps: {optimal_eps:.3f}, min_samples: {optimal_min_samples}")
+        self.logger.info(f"Optimal DBSCAN parameters - eps: {optimal_eps:.3f}, "
+                        f"min_samples: {optimal_min_samples}")
         
-        # 결과 시각화 및 저장
+        # 최적 파라미터로 클러스터링 결과 시각화
         self._visualize_clustering(X_scaled, optimal_eps, optimal_min_samples)
+        
+        # 최적 파라미터 저장
         self._save_dbscan_params(optimal_eps, optimal_min_samples)
+        self.logger.info("DBSCAN parameters saved successfully.")
         
         return optimal_eps, optimal_min_samples
     
-    def _find_optimal_eps_parallel(self, X_scaled: np.ndarray, n_neighbors: int) -> float:
-        """병렬 처리를 사용한 최적 eps 값 탐색"""
-        neighbors = NearestNeighbors(n_neighbors=n_neighbors, n_jobs=self.n_jobs)
+    def _find_optimal_eps(self, X_scaled: np.ndarray, n_neighbors: int) -> float:
+        """k-distance 그래프를 통한 최적 eps 값 찾기"""
+        # KNN 적합
+        neighbors = NearestNeighbors(n_neighbors=n_neighbors)
         neighbors_fit = neighbors.fit(X_scaled)
         distances, _ = neighbors_fit.kneighbors(X_scaled)
         
-        # 거리 계산 벡터화
+        # k-distance 그래프 그리기
         distances = np.sort(distances[:, n_neighbors-1])
         
         # Elbow point 찾기
         knee_locator = KneeLocator(
-            range(len(distances)), 
-            distances,
-            curve='convex', 
-            direction='increasing'
+            range(len(distances)), distances,
+            curve='convex', direction='increasing'
         )
+        optimal_eps = distances[knee_locator.elbow]
         
-        return distances[knee_locator.elbow]
+        # k-distance 그래프 시각화
+        plt.figure(figsize=(10, 6))
+        plt.plot(distances)
+        plt.axhline(y=optimal_eps, color='r', linestyle='--',
+                   label=f'Optimal eps = {optimal_eps:.3f}')
+        plt.title('k-distance Graph')
+        plt.xlabel('Data Points (sorted by distance)')
+        plt.ylabel(f'Distance to {n_neighbors}th nearest neighbor')
+        plt.legend()
+        plt.show(block=False)
+        title='k-distance Graph'
+        plt.savefig(os.path.join(self.out_path, title +'.png'), dpi=300, bbox_inches='tight')
+        plt.pause(self.time_delay)  # 5초 동안 그래프 표시
+        plt.close()
+        
+        return optimal_eps
     
-    def _find_optimal_min_samples_parallel(self, X_scaled: np.ndarray, 
-                                         eps: float, 
-                                         min_samples_range: range) -> int:
-        """병렬 처리를 사용한 최적 min_samples 값 탐색"""
-        def _parallel_dbscan(params):
-            min_samples, X, eps = params
-            dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=self.n_jobs)
-            labels = dbscan.fit_predict(X)
+    def _find_optimal_min_samples(self, X_scaled: np.ndarray, 
+                                eps: float, 
+                                min_samples_range: range) -> int:
+        """최적의 min_samples 값 찾기"""
+        n_clusters_list = []
+        n_noise_list = []
+        
+        for min_samples in min_samples_range:
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+            labels = dbscan.fit_predict(X_scaled)
             n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
             n_noise = list(labels).count(-1)
-            return n_clusters, n_noise
+            n_clusters_list.append(n_clusters)
+            n_noise_list.append(n_noise)
         
-        # 병렬 처리를 위한 파라미터 준비
-        params = [(ms, X_scaled, eps) for ms in min_samples_range]
+        # min_samples에 따른 클러스터 수와 노이즈 포인트 수 시각화
+        plt.figure(figsize=(12, 5))
         
-        # 병렬 처리 실행
-        with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
-            results = list(executor.map(_parallel_dbscan, params))
+        plt.subplot(1, 2, 1)
+        plt.plot(min_samples_range, n_clusters_list, marker='o')
+        plt.title('Number of Clusters vs min_samples')
+        plt.xlabel('min_samples')
+        plt.ylabel('Number of Clusters')
         
-        n_clusters_list, n_noise_list = zip(*results)
+        plt.subplot(1, 2, 2)
+        plt.plot(min_samples_range, n_noise_list, marker='o', color='red')
+        plt.title('Number of Noise Points vs min_samples')
+        plt.xlabel('min_samples')
+        plt.ylabel('Number of Noise Points')
         
-        # 최적값 선택 (벡터화된 연산)
-        optimal_idx = np.argmax(np.diff(n_clusters_list))
-        return min_samples_range[optimal_idx]
+        plt.tight_layout()
+        plt.show(block=False)
+        title='Number of Noise Points vs min_samples'
+        plt.savefig(os.path.join(self.out_path, title +'.png'), dpi=300, bbox_inches='tight')
+        
+        plt.pause(self.time_delay)  # 5초 동안 그래프 표시
+        plt.close()
+        
+        # 클러스터 수가 급격히 변하는 지점 선택
+        optimal_min_samples = min_samples_range[np.argmax(np.diff(n_clusters_list))]
+        return optimal_min_samples
     
-    def apply_dbscan_with_saved_params(self, df: pd.DataFrame, 
-                                     features: List[str]) -> pd.DataFrame:
-        """최적화된 DBSCAN 적용"""
-        eps, min_samples = self.load_dbscan_params()
-        
-        # 데이터 전처리 (벡터화)
-        X = df[features].apply(pd.to_numeric, errors='coerce')
-        
-        # 스케일링
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        # 병렬 처리로 DBSCAN 실행
-        dbscan = DBSCAN(
-            eps=eps, 
-            min_samples=min_samples, 
-            n_jobs=self.n_jobs
-        )
-        labels = dbscan.fit_predict(X_scaled)
-        
-        # 결과 저장 및 요약
-        df['cluster_id'] = labels
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-        
-        self.logger.info(f"클러스터 수: {n_clusters}")
-        self.logger.info(f"노이즈 포인트 수: {n_noise}")
-        
-        return df
-
-    def _batch_process(self, X: np.ndarray, batch_size: int = 1000):
-        """대용량 데이터를 위한 배치 처리"""
-        for i in range(0, len(X), batch_size):
-            yield X[i:i + batch_size]
-
     def _visualize_clustering(self, X_scaled: np.ndarray, 
                             eps: float, min_samples: int) -> None:
         """최적 파라미터로 클러스터링 결과 시각화"""
@@ -265,3 +261,32 @@ class ClusteringAnalysis:
             params = json.load(f)
         self.logger.info("DBSCAN parameters loaded successfully.")
         return params['eps'], params['min_samples']
+    
+    def apply_dbscan_with_saved_params(self, df: pd.DataFrame, features: List[str]) -> pd.DataFrame:
+        """저장된 파라미터로 DBSCAN 클러스터링 적용"""
+        eps, min_samples = self.load_dbscan_params()
+        
+        # 데이터 전처리
+        X = df[features].copy()
+        for col in features:
+            if isinstance(X[col].iloc[0], str):
+                X[col] = X[col].str.replace(',', '').astype(float)
+        
+        # 스케일링
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        # DBSCAN 클러스터링
+        dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+        labels = dbscan.fit_predict(X_scaled)
+        
+        # 클러스터 ID를 데이터프레임에 추가
+        df['cluster_id'] = labels
+        
+        # 클러스터링 결과 요약
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+        self.logger.info(f"Number of clusters: {n_clusters}")
+        self.logger.info(f"Number of noise points: {n_noise}")
+        
+        return df
