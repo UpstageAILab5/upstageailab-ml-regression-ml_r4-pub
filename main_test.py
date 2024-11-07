@@ -44,9 +44,16 @@ def main():
     # plt.text(0.5, 0.5, '한글 테스트', ha='center', va='center')
     # plt.axis('off')
     # plt.show()
-    base_path =Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
+    if platform.system() == 'Windows':
+        base_path = Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
+    elif platform.system() == 'Darwin':          # Mac
+        base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
+    else:
+        base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')    # Linux
+    # 마이너스 기호 깨짐 방지
+    
     # setup_matplotlib_korean(logger)
-    #Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
+    #
     out_path = os.path.join(base_path,'output')
     config ={   
             'out_path':out_path,
