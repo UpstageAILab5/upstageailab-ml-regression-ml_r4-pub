@@ -95,6 +95,7 @@ else:
     df_auto = pd.read_csv(path_auto)
     df = pd.read_csv(path_baseline)
 ########################################################################################################################################
+## Feature Engineering
 flag_add = True # 거리 분석 포함 여부
 if not os.path.exists(path_feat):
     logger.info('>>>>feat eng 존재하지 않음. 생성 시작...')
@@ -120,6 +121,7 @@ label_encoders = feat_eng_data.get('label_encoders')
 continuous_columns_v2 = feat_eng_data.get('continuous_columns_v2')
 categorical_columns_v2 = feat_eng_data.get('categorical_columns_v2')
 ########################################################################################################################################
+## Feature Add 1. 거리 분석
 if not os.path.exists(path_feat_add):
     logger.info('>>>>feat add 존재하지 않음. 생성 시작...')
     feat_add = FeatureAdditional(config)
@@ -148,9 +150,25 @@ else:
     logger.info('>>>>feat add 존재. Loading...')
     concat = pd.read_csv(path_feat_add)
 ########################################################################################################################################
+cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + subway_cols + bus_cols
+## Feature Add 2. Clustering
+
+path_feat_add_cluster = os.path.join(prep_path, 'df_feat_add_cluster.csv')
+if not os.path.exists(path_feat_add_cluster):
+    logger.info('>>>>Clustering 시작...')
+    clustering_analysis.find_optimal_dbscan_params(concat, features = cols,
+                                 min_samples_range = range(2, 10),
+                                 n_neighbors = 5) 
+    concat = clustering_analysis.apply_dbscan_with_saved_params(concat, features =  cols)
+    concat.to_csv(path_feat_add_cluster)
+else:
+    logger.info('>>>>Clustering 존재. Loading...')
+    concat = pd.read_csv(path_feat_add_cluster)
+logger.info(f'Clustering 결과 : {concat.head(3)}')
+########################################################################################################################################
+##  Split Train/Test
 dt_train, dt_test, continuous_columns_v2, categorical_columns_v2 = feat_eng.split_train_test(concat)
 X_test = dt_test.drop(['target'], axis=1)
-
 # dt_test['target'] = y_val
 # config['X_train'] = X_train
 # config['X_val'] = X_val
@@ -158,7 +176,7 @@ X_test = dt_test.drop(['target'], axis=1)
 # config['y_val'] = y_val
 # config['model'] = model
 ########################################################################################################################################
-#### Model Training
+##  Model Training
 model_name = 'xgboost'
 split_type = 'k_fold'
 out_model_path = os.path.join(out_path, f'saved_model_{model_name}_{split_type}.pkl')
@@ -181,15 +199,6 @@ else:
 #             'continuous_columns': continuous_columns_v2,
 #             'categorical_columns': categorical_columns_v2
 # }
-########################################################################################################################################
-## Clustering
-logger.info('>>>>Clustering 시작...')
-cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + subway_cols + bus_cols
-clustering_analysis.find_optimal_dbscan_params(dt_train, features = cols,
-                                 min_samples_range = range(2, 10),
-                                 n_neighbors = 5) 
-clustering_analysis.apply_dbscan_with_saved_params(dt_train, features =  cols)
-########################################################################################################################################
 # out_path_data = model_instance.save_data(prep_data)
 # # loaded_data = load_data_pkl(out_path_data)
 # # print(loaded_data)
