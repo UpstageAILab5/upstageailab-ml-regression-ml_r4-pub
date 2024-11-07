@@ -134,53 +134,54 @@ def main():
     label_encoders = feat_eng_data.get('label_encoders')
     continuous_columns_v2 = feat_eng_data.get('continuous_columns_v2')
     categorical_columns_v2 = feat_eng_data.get('categorical_columns_v2')
-    logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
-    concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
 
-    dt_train['is_test'] = 0
-    dt_test['is_test'] = 1
-    logger.info('is_test column added to train and test data.\nConcat train and test data.')
-    concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
-    concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
+    # logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
+    # concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
+
+    # dt_train['is_test'] = 0
+    # dt_test['is_test'] = 1
+    # logger.info('is_test column added to train and test data.\nConcat train and test data.')
+    # concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
+    # concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
     ########################################################################################################################################
     ## Feature Add 1. 거리 분석
-    # if not os.path.exists(path_feat_add):
-    #     logger.info('>>>>feat add 존재하지 않음. 생성 시작...')
-    #     feat_add = FeatureAdditional(config)
-    #     df_coor = {'x': '좌표X', 'y': '좌표Y'}
-    #     subway_coor = {'x': '위도', 'y': '경도'}
-    #     bus_coor = {'x': 'X좌표', 'y': 'Y좌표'}
-    #     subway_feature = pd.read_csv(config.get('subway_feature'))
-    #     bus_feature = pd.read_csv(config.get('bus_feature'))
+    if not os.path.exists(path_feat_add):
+        logger.info('>>>>feat add 존재하지 않음. 생성 시작...')
+        feat_add = FeatureAdditional(config)
+        df_coor = {'x': '좌표X', 'y': '좌표Y'}
+        subway_coor = {'x': '위도', 'y': '경도'}
+        bus_coor = {'x': 'X좌표', 'y': 'Y좌표'}
+        subway_feature = pd.read_csv(config.get('subway_feature'))
+        bus_feature = pd.read_csv(config.get('bus_feature'))
 
-    #     logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
-    #     concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
+        logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
+        concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
 
-    #     dt_train['is_test'] = 0
-    #     dt_test['is_test'] = 1
-    #     logger.info('is_test column added to train and test data.\nConcat train and test data.')
-    #     concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
-    #     concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
-    #         # 1. Numba + 병렬처리 조합 (메모리 효율적)
-    #     # df, cols = feat_add.distance_analysis_optimized(
-    #     #     df, subway_feature, df_coor, subway_coor, radius=500, target='subway'
-    #     # )
+        dt_train['is_test'] = 0
+        dt_test['is_test'] = 1
+        logger.info('is_test column added to train and test data.\nConcat train and test data.')
+        concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
+        concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
+            # 1. Numba + 병렬처리 조합 (메모리 효율적)
+        # df, cols = feat_add.distance_analysis_optimized(
+        #     df, subway_feature, df_coor, subway_coor, radius=500, target='subway'
+        # )
 
-    #     # 2. BallTree 방식 (더 빠르지만 메모리 많이 사용)
-    #     concat, subway_cols = feat_add.distance_analysis_balltree(
-    #         concat, subway_feature, df_coor, subway_coor, radius=500, target='subway'
-    #     )
-    #     #concat, subway_cols = feat_add.distance_analysis_parallel(concat, subway_feature, df_coor, subway_coor, 500, 'subway')
-    #     concat, bus_cols = feat_add.distance_analysis_balltree(concat, bus_feature, df_coor, bus_coor, 500, 'bus')
-    #     logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
-    #     #df.drop(df.columns[0], axis=1, inplace=True)
-    #     concat.to_csv(path_feat_add)
+        # 2. BallTree 방식 (더 빠르지만 메모리 많이 사용)
+        concat, subway_cols = feat_add.distance_analysis_balltree(
+            concat, subway_feature, df_coor, subway_coor, radius=500, target='subway'
+        )
+        #concat, subway_cols = feat_add.distance_analysis_parallel(concat, subway_feature, df_coor, subway_coor, 500, 'subway')
+        concat, bus_cols = feat_add.distance_analysis_balltree(concat, bus_feature, df_coor, bus_coor, 500, 'bus')
+        logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
+        #df.drop(df.columns[0], axis=1, inplace=True)
+        concat.to_csv(path_feat_add)
 
-    # else:
-    #     logger.info('>>>>feat add 존재. Loading...')
-    #     concat = pd.read_csv(path_feat_add)
+    else:
+        logger.info('>>>>feat add 존재. Loading...')
+        concat = pd.read_csv(path_feat_add)
     ########################################################################################################################################
-    cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] #+ subway_cols + bus_cols
+    cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + subway_cols + bus_cols
     ## Feature Add 2. Clustering
 
     path_feat_add_cluster = os.path.join(prep_path, 'df_feat_add_cluster.csv')
