@@ -4304,3 +4304,8 @@ min      0.000000e+00
 75%      7.810000e+02
 max      4.974000e+03
 Name: 본번, dtype: float64
+2024-11-08 14:55:09,119 - root - INFO - #### Init Data Prep.. 
+2024-11-08 15:02:09,564 - root - INFO - #### Init Data Prep.. 
+2024-11-08 15:02:46,311 - root - INFO - Removing unnamed columns: ['Unnamed: 0']
+2024-11-08 15:32:31,473 - root - INFO - #### Init Data Prep.. 
+2024-11-08 16:44:56,005 - root - INFO - Removing unnamed columns: ['Unnamed: 0.1', 'Unnamed: 0']

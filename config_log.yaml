@@ -1,11 +1,19 @@
-# config.yaml
-target: 'target'
+out_path: D:\dev\upstageailab5-ml-regression-ml_r4\output
+base_path: !!python/object/apply:pathlib.WindowsPath
+- D:\
+- dev
+- upstageailab5-ml-regression-ml_r4
+subway_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\subway_feature.csv
+bus_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\bus_feature.csv
+wandb:
+  project: project-regression_house_price
+  entity: joon
+  group: group-ml4
+target: price
 thr_ratio_outlier: 0.01
 thr_ratio_null: 0.9
 time_delay: 3
 random_seed: 2024
-target: price
-
 model_params:
   n_estimators: 100
   max_depth: 5
@@ -14,10 +22,9 @@ data_paths:
   train: data/train.csv
   test: data/test.csv
 features:
-  - feature1
-  - feature2
-  - feature3
-  
+- feature1
+- feature2
+- feature3
 sweep_configs:
   xgboost:
     method: bayes

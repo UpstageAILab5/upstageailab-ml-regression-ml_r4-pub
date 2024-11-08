@@ -3,10 +3,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from src.utils import get_unique_filename
+from src.utils import Utils
+
+get_unique_filename = Utils.get_unique_filename
 
 class DataPrep():
     def __init__(self, config):
+        self.config = config
+        self.logger_instance = config.get('logger')
+        self.logger_instance.setup_logger(log_file='preprocessing')
+        self.logger = self.logger_instance.logger
+
         self.time_delay = config.get('time_delay', 3)
         self.base_path = config.get('base_path')
         self.data_path = os.path.join(self.base_path, 'data')
@@ -14,8 +21,7 @@ class DataPrep():
         self.test_path  = os.path.join(self.data_path, 'test.csv')
         self.out_path = config.get('out_path')
         self.target = config.get('target')
-        self.config = config
-        self.logger = config.get('logger')
+        
         self.thr_ratio_outlier = config.get('thr_ratio_outlier')
         self.thr_ratio_null = config.get('thr_ratio_null')        
         # 경로 확인

@@ -10,72 +10,77 @@ from sklearn.model_selection import KFold, cross_val_score, KFold, train_test_sp
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import make_scorer, mean_squared_error
 from src.feature import  XAI
-sweep_configs = {
-            "xgboost": {
-                'method': 'bayes',
-                'metric': {'name': 'rmse', 'goal': 'minimize'},
-                'parameters': {
-                    'eta': 0.3,
-                    'max_depth':10,
-                    'subsample': 0.6239,
-                    'colsample_bytree': 0.5305,
-                    'gamma': 4.717,
-                    'reg_lambda': 5.081, 
-                    'alpha': 0.4902,
-                    'n_estimators': 551
-                }
-            },
-            "random_forest": {
-            'method': 'bayes',
-            'metric': {'name': 'rmse', 'goal': 'minimize'},
-            'parameters': {
-                'n_estimators': 200,
-                'max_depth': 20,
-                'min_samples_split': 2,
-                'min_samples_leaf': 1,
-                'max_features': 'log2'
-            }
-        }
-}
+from src.utils import Utils
+import warnings
+warnings.filterwarnings('ignore')
+
 class Model():
     def __init__(self, config):
+        self.config = config
         self.out_path = config.get('out_path')
         self.random_seed = config.get('random_seed')
-        self.logger = config.get('logger')
+        self.logger_instance = config.get('logger')
+        self.logger_instance.setup_logger(log_file='preprocessing')
+        self.logger = self.logger_instance.logger
         self.logger.info('#### Init Model Train... ')
+        self.time_delay = config.get('time_delay')
     ### Model training
     def cross_validate_and_evaluate(self, model, X, y):
-        kf = KFold(n_splits=5, shuffle=True, random_state=self.random_seed)
+        """
+        교차 검증 및 모델 평가
+        Parameters:
+            model: 학습할 모델
+            X: 특성 데이터프레임
+            y: 타겟 시리즈
+        """
+        self.logger.info(f"\n=== 교차 검증 시작 ===")
+        self.logger.info(f"전체 데이터셋 shape - X: {X.shape}, y: {y.shape}")
+        
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
         rmse_scores = []
-
-        for train_index, val_index in kf.split(X):
-            X_train, X_val = X[train_index], X[val_index]
-            y_train, y_val = y[train_index], y[val_index]
-
-            # 모델 훈련
+        
+        for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+            self.logger.info(f"\n--- Fold {fold}/5 ---")
+            
+            # 데이터 분할
+            X_train = X.iloc[train_index]
+            X_val = X.iloc[val_index]
+            y_train = y.iloc[train_index]
+            y_val = y.iloc[val_index]
+            
+            # 분할된 데이터셋 shape 출력
+            self.logger.info(f"Train set shape - X: {X_train.shape}, y: {y_train.shape}")
+            self.logger.info(f"Val set shape   - X: {X_val.shape}, y: {y_val.shape}")
+            
+            # 모델 학습
+            self.logger.info("모델 학습 중...")
             model.fit(X_train, y_train)
-
-            # 검증 세트에 대한 예측
-            pred = model.predict(X_val)
-
-            # RMSE 계산
-            rmse = np.sqrt(mean_squared_error(y_val, pred))
+            
+            # 예측 및 RMSE 계산
+            val_pred = model.predict(X_val)
+            rmse = np.sqrt(mean_squared_error(y_val, val_pred))
             rmse_scores.append(rmse)
-
-            self.logger.info(f'Fold RMSE: {rmse:.4f}')
-            xai = XAI(self.config)
-            xai.shap_summary(model, X_train, X_val, y_val, y_train)
-
-        # 평균 RMSE 계산
+            
+            self.logger.info(f'Fold {fold} RMSE: {rmse:,.2f}')
+            
+            # 메모리 정리
+            del X_train, X_val, y_train, y_val, val_pred
+            import gc
+            gc.collect()
+        
         mean_rmse = np.mean(rmse_scores)
-        self.logger.info(f'Mean RMSE: {mean_rmse:.4f}')
-
+        std_rmse = np.std(rmse_scores)
+        
+        self.logger.info("\n=== 교차 검증 결과 ===")
+        self.logger.info(f'평균 RMSE: {mean_rmse:,.2f} (±{std_rmse:,.2f})')
+        self.logger.info(f'개별 RMSE: {[f"{score:,.2f}" for score in rmse_scores]}')
+        
         return model, mean_rmse
     def model_train(self, X, y, model_name='xgboost', type='default'):
     # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
         #model = RandomForestRegressor(n_estimators=5, criterion='squared_error', random_state=1, n_jobs=-1)
         
-        config = sweep_configs[model_name]['parameters'] 
+        config = self.config.get('sweep_configs')[model_name]['parameters'] 
         if model_name == 'xgboost':
             model = xgb.XGBRegressor(
                     reg_alpha=config.get('alpha'),   
@@ -116,15 +121,7 @@ class Model():
             # X = np.vstack((X_train, X_val))
             # y = np.hstack((y_train, y_val))  # Use hstack since y is a 1D array
             model, rmse = self.cross_validate_and_evaluate(model, X, y)
-            # Correct the make_scorer usage
-            # rmse_scorer = make_scorer(mean_squared_error, squared=False, greater_is_better=False)
-            # # Perform cross-validation
-            # cv_scores = cross_val_score(model, X, y, cv=kf, scoring=rmse_scorer)
-            # model.fit(X_train, y_train)
-            # # Calculate the RMSE
-            # pred = model.predict(X_val)
-            # rmse = -np.mean(cv_scores)  # Negative sign because scoring returns negative values
-        
+
         else:
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
             model.fit(X_train, y_train)
@@ -142,7 +139,7 @@ class Model():
         plt.title(title_feat)
         sns.barplot(x=importances, y=importances.index)
         plt.show(block=False)
-        plt.pause(5)  # 5초 동안 그래프 표시
+        plt.pause(self.time_delay)  # 5초 동안 그래프 표시
         plt.close()
         plt.savefig(os.path.join(self.out_path, title_feat +'.png'), dpi=300, bbox_inches='tight')
 

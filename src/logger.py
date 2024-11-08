@@ -9,7 +9,7 @@ class Logger:
         self.logger = self.setup_logger()
         self.logger.info("Initialized Logger.")
 
-    def setup_logger(self):
+    def setup_logger(self, log_file='main'):
         """로거 설정: 핸들러 중복 방지 및 한글 인코딩 설정"""
         logger = self.logger
         
@@ -33,7 +33,7 @@ class Logger:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         file_handler = logging.FileHandler(
-            os.path.join(log_dir, 'preprocessing.log'), 
+            os.path.join(log_dir, f'{log_file}.log'), 
             encoding='utf-8'
         )
         file_handler.setLevel(logging.INFO)

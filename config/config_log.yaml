@@ -1,0 +1,11 @@
+out_path: D:\dev\upstageailab5-ml-regression-ml_r4\output
+base_path: !!python/object/apply:pathlib.WindowsPath
+- D:\
+- dev
+- upstageailab5-ml-regression-ml_r4
+subway_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\subway_feature.csv
+bus_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\bus_feature.csv
+wandb:
+  project: project-regression_house_price
+  entity: joon
+  group: group-ml4

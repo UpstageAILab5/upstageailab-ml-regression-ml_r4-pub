@@ -4,103 +4,100 @@ import os
 # import pygwalker as pyg
 # import dabl
 import pandas as pd
-
 from src.logger import Logger
 from src.preprocessing import DataPrep
 from src.eda import EDA
-from src.feature import FeatureEngineer, FeatureAdditional
-from src.clustering import Clustering, ClusteringAnalysis
+from src.feature import FeatureEngineer, FeatureAdditional, Clustering
 from src.train import Model
-from src.visualization import Visualizer
 # from src.utils import setup_matplotlib_korean
 import pickle
 from multiprocessing import freeze_support
 import matplotlib.pyplot as plt
-from src.utils import get_unique_filename
+from src.utils import Utils
 import platform
-
-def setup_font():
-    # 운영체제 확인 후 폰트 설정
-    if platform.system() == 'Windows':
-        plt.rc('font', family='Malgun Gothic')  # Windows
-    elif platform.system() == 'Darwin':          # Mac
-        plt.rc('font', family='AppleGothic')
-    else:
-        plt.rc('font', family='NanumGothic')    # Linux
-    # 마이너스 기호 깨짐 방지
-    plt.rc('axes', unicode_minus=False)
-
+import pprint
+import yaml
+# 메모리 정리
+import gc
+gc.collect()
 
 def main():
+    get_unique_filename = Utils.get_unique_filename
     # import matplotlib.pyplot as plt
     # import matplotlib.font_manager as fm
-    logger_instance = Logger()
-    logger = logger_instance.logger
-    setup_font()
     # setup_matplotlib_korean(logger)
     ########################################################################################################################################
-    # 테스트
-    # plt.figure(figsize=(3, 1))
-    # plt.text(0.5, 0.5, '한글 테스트', ha='center', va='center')
-    # plt.axis('off')
-    # plt.show()
-    if platform.system() == 'Windows':
+    logger_instance = Logger()
+    logger = logger_instance.logger
+    utils = Utils(logger)
+    utils.setup_font_and_path_platform()
+    current_platform = utils.current_platform
+    #os.environ['PYTHONPATH'] = r'D:\dev\upstageailab5-ml-regression-ml_r4'
+    current_path = os.path.abspath(os.path.join(os.getcwd(), '..'))
+    logger.info(f'#### Current workspalce: {current_path}')
+    if current_platform == 'Windows':
         base_path = Path(r'D:\dev\upstageailab5-ml-regression-ml_r4')
-    elif platform.system() == 'Darwin':          # Mac
+        logger.info(f'{current_platform} platform. Path: {base_path}')
+    elif current_platform == 'Darwin':          # Mac
         base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')
+        logger.info(f'{current_platform} platform. Path: {base_path}')
     else:
         base_path = Path('/data/ephemeral/home/dev/upstageailab5-ml-regression-ml_r4')    # Linux
-    # 마이너스 기호 깨짐 방지
-    
-    # setup_matplotlib_korean(logger)
-    #
+        logger.info(f'{current_platform} platform. Path: {base_path}')
+
+    logs_path = os.path.join(base_path, 'logs')
+    config_path = os.path.join(base_path, 'config')
+
     out_path = os.path.join(base_path,'output')
+    config_file_path = os.path.join(config_path, 'config.yaml')
+    print(config_file_path)
+    config_base = Utils.load_nested_yaml(config_file_path)
+    #config_base = Utils.get_nested_value(loaded_config, 'config')
     config ={   
             'out_path':out_path,
             'base_path':base_path,
             'subway_feature': os.path.join(base_path, 'data','subway_feature.csv'),
             'bus_feature': os.path.join(base_path, 'data','bus_feature.csv'),
-            'logger': logger,
-            'random_seed': 2024,
-            'target': 'target',
-            'thr_ratio_outlier': 0.01,
-            'thr_ratio_null': 0.9,
+            'logger': logger_instance,#logger,
             'wandb': {
                 'project': 'project-regression_house_price',     # 필수: wandb 프로젝트명
                 'entity': 'joon',          # 필수: wandb 사용자/조직명
-            # 'name': 'run-name',            # 선택: 실험 실행 이름 (지정하지 않으면 자동 생성)
                 'group': 'group-ml4',    # 선택: 실험 그룹명
-                #'tags': ['tag1', 'tag2'],      # 선택: 실험 태그
-                #'notes': 'experiment notes'     # 선택: 실험 노트
-        }}
+            }
+        }
+    config.update(config_base)
+    pprint.pprint(config)
 
-    # walker = pyg.walk(
-    #     df,
-    #     spec="./chart_meta_0.json",    # this json file will save your chart state, you need to click save button in ui mannual when you finish a chart, 'autosave' will be supported in the future.
-    #     kernel_computation=True,          # set `kernel_computation=True`, pygwalker will use duckdb as computing engine, it support you explore bigger dataset(<=100GB).
-    # )
+    # logger 객체만 제거한 복사본 생성
+    config_to_save = {k: v for k, v in config.items() if k != 'logger'}
+
+    config_log_path = os.path.join(base_path, 'config_log.yaml')
+    # YAML 파일로 저장
+    with open(config_log_path, 'w', encoding='utf-8') as f:
+        yaml.dump(
+            config_to_save,
+            f,
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False
+        )
     ########################################################################################################################################
     ### Data Prep
-    data_prep = DataPrep(config)
-    eda = EDA(config)
-    feat_eng = FeatureEngineer(config)
-    clustering = Clustering(config)
-    clustering_analysis = ClusteringAnalysis(config)
-    model = Model(config)
-    visualizer = Visualizer(config)
-    ########################################################################################################################################
-    ### EDA
     prep_path = os.path.join(base_path, 'data', 'processed')
     path_baseline = os.path.join(prep_path, 'df_baseline_prep.csv')
-    path_feat = os.path.join(prep_path, 'df_feat.csv')
-
     path_auto = os.path.join(prep_path, 'df_auto_prep.csv')
+    ########################################################################################################################################
+    ### EDA
+    
+    path_feat = os.path.join(prep_path, 'df_feat.csv')
     path_feat_add = os.path.join(prep_path, 'df_feat_add.csv')
 
+    data_prep = DataPrep(config)
     if not os.path.exists(path_auto):
-        logger.info('>>>>auto eda 존재하지 않음. 생성 시작...')
+        logger.info('>>>>Data prep or auto eda 존재하지 않음. 생성 시작...')
         df = data_prep.data_prep()
         #df_raw = data_prep._load_data_concat_train_test()
+        eda = EDA(config)
         df_auto = eda.automated_eda(df)
         df_auto.to_csv(path_auto)
         df.to_csv(path_baseline)
@@ -110,6 +107,7 @@ def main():
         df = pd.read_csv(path_baseline)
     ########################################################################################################################################
     ## Feature Engineering
+    feat_eng = FeatureEngineer(config)
     flag_add = True # 거리 분석 포함 여부
     if not os.path.exists(path_feat):
         logger.info('>>>>feat eng 존재하지 않음. 생성 시작...')
@@ -145,36 +143,38 @@ def main():
     # concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
     ########################################################################################################################################
     ## Feature Add 1. 거리 분석
+    
     if not os.path.exists(path_feat_add):
-        logger.info('>>>>feat add 존재하지 않음. 생성 시작...')
         feat_add = FeatureAdditional(config)
+        logger.info('>>>>feat add 존재하지 않음. 생성 시작...')
         df_coor = {'x': '좌표X', 'y': '좌표Y'}
-        subway_coor = {'x': '위도', 'y': '경도'}
+        subway_coor = {'x': '경도', 'y':'위도' }
         bus_coor = {'x': 'X좌표', 'y': 'Y좌표'}
         subway_feature = pd.read_csv(config.get('subway_feature'))
         bus_feature = pd.read_csv(config.get('bus_feature'))
 
         logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
-        concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
+        
+    
+        #concat = concat.sample(frac=0.001)
+        #print(concat.shape)
 
-        dt_train['is_test'] = 0
-        dt_test['is_test'] = 1
-        logger.info('is_test column added to train and test data.\nConcat train and test data.')
-        concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
-        concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
-            # 1. Numba + 병렬처리 조합 (메모리 효율적)
-        # df, cols = feat_add.distance_analysis_optimized(
-        #     df, subway_feature, df_coor, subway_coor, radius=500, target='subway'
-        # )
-        # 2. BallTree 방식 (더 빠르지만 메모리 많이 사용)
-        concat, subway_cols = feat_add.distance_analysis_balltree(
-            concat, subway_feature, df_coor, subway_coor, radius=500, target='subway'
-        )
-        #concat, subway_cols = feat_add.distance_analysis_parallel(concat, subway_feature, df_coor, subway_coor, 500, 'subway')
-        concat, bus_cols = feat_add.distance_analysis_balltree(concat, bus_feature, df_coor, bus_coor, 500, 'bus')
-        logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
-        #df.drop(df.columns[0], axis=1, inplace=True)
-        concat.to_csv(path_feat_add)
+
+        if flag_add:
+            concat = pd.concat([dt_train, dt_test], axis=0).reset_index(drop=True)
+            dt_train['is_test'] = 0
+            dt_test['is_test'] = 1
+            logger.info('is_test column added to train and test data.\nConcat train and test data.')
+            concat = pd.concat([dt_train, dt_test])     # 하나의 데이터로 만들어줍니다.
+            concat['is_test'].value_counts()      # train과 test data가 하나로 합쳐진 것을 확인할 수 있습니다.
+            #  BallTree 방식 (더 빠르지만 메모리 많이 사용)
+            concat, subway_cols = feat_add.distance_analysis_balltree(
+                concat, subway_feature, df_coor, subway_coor, target='subway'
+            )
+            concat, bus_cols = feat_add.distance_analysis_balltree(concat, bus_feature, df_coor, bus_coor, target='bus')
+            logger.info(f'For concat.Train data shape : {dt_train.shape}, Test data shape : {dt_test.shape}\n{dt_train.head(1)}\n{dt_test.head(1)}')
+            #df.drop(df.columns[0], axis=1, inplace=True)
+            concat.to_csv(path_feat_add)
     else:
         logger.info('>>>>feat add 존재. Loading...')
         concat = pd.read_csv(path_feat_add)
@@ -187,21 +187,49 @@ def main():
     if unnamed_cols:
         logger.info(f"Removing unnamed columns: {unnamed_cols}")
         concat = concat.drop(columns=unnamed_cols)
+    logger.info(f'Total names: {len(concat.columns)} \nConcat data new column names : {transport_cols}')
     ########################################################################################################################################
-    cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + transport_cols
     ## Feature Add 2. Clustering
+    cols = ['아파트명','전용면적','층','건축년도','k-건설사(시공사)','주차대수','강남여부','신축여부','k-주거전용면적' ] + transport_cols
+    
+    clustering = Clustering(config)
+    path_feat_add_cluster_dist = os.path.join(prep_path, 'df_feat_add_cluster_dist.csv')
+    if not os.path.exists(path_feat_add_cluster_dist):
+        logger.info('>>>>Dist-based Clustering 시작...')
+        concat = clustering.dbscan_clustering(concat, features = ['좌표X', '좌표Y'], target='dist')
+        concat.to_csv(path_feat_add_cluster_dist)
+    else:
+        logger.info('>>>>Dist-based Clustering 존재. Loading...')
+        concat = pd.read_csv(path_feat_add_cluster_dist)
+    logger.info(f'Clustering 결과 : {concat.head(3)}')
+    #####
+    
+    path_feat_add_cluster_dist_transport = os.path.join(prep_path, 'df_feat_add_cluster_dist_transport.csv')
+    if not os.path.exists(path_feat_add_cluster_dist_transport):
+        logger.info('>>>>Dist/Transport-based Clustering 시작...')
+        concat = clustering.dbscan_clustering(concat, features = ['좌표X', '좌표Y']+transport_cols, target='dist_transport')
+        concat.to_csv(path_feat_add_cluster_dist_transport)
+    else:
+        logger.info('>>>>Dist/Transport-based Clustering 존재. Loading...')
+        concat = pd.read_csv(path_feat_add_cluster_dist_transport)
+
+    #clustering_analysis = ClusteringAnalysis(config)
     logger.info(f'Clustering 대상 컬럼 : {cols}')
     path_feat_add_cluster = os.path.join(prep_path, 'df_feat_add_cluster.csv')
+    
     if not os.path.exists(path_feat_add_cluster):
         logger.info('>>>>Clustering 시작...')
-        clustering_analysis.find_optimal_dbscan_params(concat, features = cols,
-                                    min_samples_range = range(2, 10),
-                                    n_neighbors = 5) 
-        concat = clustering_analysis.apply_dbscan_with_saved_params(concat, features =  cols)
+        concat = clustering.dbscan_clustering(concat, features = cols, target='select'  )
+        # clustering_analysis.find_optimal_dbscan_params(concat, features = cols,
+        #                             min_samples_range = range(2, 10),
+        #                             n_neighbors = 5) 
+        # concat = clustering_analysis.apply_dbscan_with_saved_params(concat, features =  cols)
         concat.to_csv(path_feat_add_cluster)
     else:
         logger.info('>>>>Clustering 존재. Loading...')
         concat = pd.read_csv(path_feat_add_cluster)
+
+    
     logger.info(f'Clustering 결과 : {concat.head(3)}')
     ########################################################################################################################################
     ##  Split Train/Test
@@ -215,6 +243,8 @@ def main():
     # config['model'] = model
     ########################################################################################################################################
     ##  Model Training
+    model = Model(config)
+    
     model_name = 'xgboost'
     split_type = 'k_fold'
     out_model_path = os.path.join(out_path, f'saved_model_{model_name}_{split_type}.pkl')
@@ -258,6 +288,7 @@ def main():
     logger.info(f'Inference 결과 저장 완료 : {out_pred_path}')
     logger.info(f'{preds_df.head(3)}')
     model.inference(dt_test)
+    #visualizer = Visualizer(config)
 if __name__ == '__main__':
     freeze_support()
     main()
