@@ -162,24 +162,50 @@ class ClusteringAnalysis:
         
         return distances[knee_locator.elbow]
 
+    def _parallel_dbscan(self, X_scaled: np.ndarray, min_samples: int, eps: float) -> dict:
+        """DBSCAN을 실행하는 독립적인 함수"""
+        dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=self.n_jobs)
+        labels = dbscan.fit_predict(X_scaled)
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+        
+        return {
+            'min_samples': min_samples,
+            'n_clusters': n_clusters,
+            'n_noise': n_noise
+        }
+
     def _find_optimal_min_samples(self, X_scaled: np.ndarray, 
                                 eps: float, 
                                 min_samples_range: range) -> int:
-        """순차적 처리로 최적 min_samples 값 탐색"""
-        n_clusters_list = []
-        n_noise_list = []
+        """병렬 처리로 최적 min_samples 값 탐색"""
+        results = []
         
-        for min_samples in tqdm(min_samples_range, 
-                              desc="Finding optimal min_samples",
-                              position=0):
-            dbscan = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=self.n_jobs)
-            labels = dbscan.fit_predict(X_scaled)
-            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-            n_noise = list(labels).count(-1)
-            n_clusters_list.append(n_clusters)
-            n_noise_list.append(n_noise)
+        with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
+            futures = []
+            for min_samples in min_samples_range:
+                future = executor.submit(
+                    self._parallel_dbscan,
+                    X_scaled,
+                    min_samples,
+                    eps
+                )
+                futures.append(future)
+            
+            for future in tqdm(as_completed(futures), 
+                             total=len(futures),
+                             desc="Finding optimal min_samples"):
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    self.logger.error(f"병렬 처리 중 오류 발생: {str(e)}")
         
+        # 결과 정렬 및 최적값 찾기
+        results.sort(key=lambda x: x['min_samples'])
+        n_clusters_list = [r['n_clusters'] for r in results]
         optimal_idx = np.argmax(np.diff(n_clusters_list))
+        
         return min_samples_range[optimal_idx]
 
     def _visualize_clustering(self, X_scaled: np.ndarray, 
