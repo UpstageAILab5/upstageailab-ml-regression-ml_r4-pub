@@ -6,6 +6,7 @@ import platform
 from pathlib import Path
 from typing import Dict, Any
 import yaml
+from pathlib import Path
 
 class Utils:
     def __init__(self, logger):
@@ -202,3 +203,65 @@ class Utils:
         # 메모리 정리
         plt.clf()
         self.current_platform=platform.system()
+
+
+
+class PathManager:
+    """운영체제 독립적인 경로 관리 유틸리티"""
+    
+    def __init__(self, base_path):
+        # 문자열이나 Path 객체를 받아서 Path 객체로 변환
+        self.base_path = Path(base_path).resolve()  # resolve()로 절대 경로 변환
+        self.paths = {}
+        self.os_type = platform.system()  # 'Windows', 'Linux', 'Darwin' (Mac)
+        
+    def _normalize_path(self, path_str):
+        """경로 문자열 정규화"""
+        # '/', '\' 모두 처리
+        return str(Path(path_str.replace('\\', '/')))
+    
+    def add_paths(self, paths_config):
+        """경로 추가"""
+        if isinstance(paths_config, list):
+            paths_config = {path: path for path in paths_config}
+        
+        for name, rel_path in paths_config.items():
+            # 경로 정규화
+            normalized_path = self._normalize_path(rel_path)
+            # Path 객체로 변환 및 결합
+            full_path = (self.base_path / normalized_path).resolve()
+            # 디렉토리 생성
+            full_path.mkdir(parents=True, exist_ok=True)
+            self.paths[name] = full_path
+        
+        return self.paths
+    
+    def get_path(self, name, as_str=False):
+        """
+        경로 가져오기
+        
+        Parameters:
+            name: 경로 이름
+            as_str: True면 문자열 반환, False면 Path 객체 반환
+        """
+        path = self.paths.get(name)
+        if path and as_str:
+            return str(path)
+        return path
+    
+    def create_subdir(self, parent, name):
+        """하위 디렉토리 생성"""
+        parent_path = self.get_path(parent)
+        if parent_path:
+            # 경로 정규화
+            normalized_name = self._normalize_path(name)
+            new_path = (parent_path / normalized_name).resolve()
+            new_path.mkdir(parents=True, exist_ok=True)
+            return new_path
+        return None
+    
+    def get_all_paths(self, as_str=False):
+        """모든 경로 조회"""
+        if as_str:
+            return {k: str(v) for k, v in self.paths.items()}
+        return self.paths

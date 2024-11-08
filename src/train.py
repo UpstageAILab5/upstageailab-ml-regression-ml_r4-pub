@@ -25,6 +25,7 @@ class Model():
         self.logger.info('#### Init Model Train... ')
         self.time_delay = config.get('time_delay')
     ### Model training
+    @Utils.timeit
     def cross_validate_and_evaluate(self, model, X, y):
         """
         교차 검증 및 모델 평가
@@ -120,17 +121,22 @@ class Model():
             # Ensure X and y are vertically stacked properly
             # X = np.vstack((X_train, X_val))
             # y = np.hstack((y_train, y_val))  # Use hstack since y is a 1D array
-            model, rmse = self.cross_validate_and_evaluate(model, X, y)
+            model, rmse_avg = self.cross_validate_and_evaluate(model, X, y)
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
 
         else:
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
             model.fit(X_train, y_train)
-            pred = model.predict(X_val)
-            rmse = np.sqrt(metrics.mean_squared_error(y_val, pred))
+        pred = model.predict(X_val)
+        rmse = np.sqrt(metrics.mean_squared_error(y_val, pred))
+        self.logger.info(f'RMSE cross validation {type}\nmean RMSE for val data set: {rmse_avg}')
             # 회귀 관련 metric을 통해 train/valid의 모델 적합 결과를 관찰합니다.
-
-        self.logger.info(f'mean RMSE for val data set: {rmse}')
-
+        # 학습된 모델을 저장합니다. Pickle 라이브러리를 이용하겠습니다.
+        out_path = os.path.join(self.out_path,f'saved_model_{model_name}_{type}.pkl' )
+        with open(out_path, 'wb') as f:
+            pickle.dump(model, f)
+        self.logger.info(f'mean RMSE for val data set: {rmse}\nModel saved to {out_path}')
+        self.logger.info(f'Feature Importances for {model_name}')
         # 위 feature importance를 시각화해봅니다.
         importances = pd.Series(model.feature_importances_, index=list(X_train.columns))
         importances = importances.sort_values(ascending=False)
@@ -142,48 +148,43 @@ class Model():
         plt.pause(self.time_delay)  # 5초 동안 그래프 표시
         plt.close()
         plt.savefig(os.path.join(self.out_path, title_feat +'.png'), dpi=300, bbox_inches='tight')
-
-        # 학습된 모델을 저장합니다. Pickle 라이브러리를 이용하겠습니다.
-        out_path = os.path.join(self.out_path,f'saved_model_{model_name}_{type}.pkl' )
-        with open(out_path, 'wb') as f:
-            pickle.dump(model, f)
         return model, pred
 
-    def k_fold_train(self, dt_train, k=5):
-        y = dt_train['target']
-        X = dt_train.drop(['target'], axis=1)
-        kf = KFold(n_splits=k, shuffle=True, random_state=self.random_seed)
-        # 또는 StratifiedKFold (타겟 불균형시)
-        # skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    # def k_fold_train(self, dt_train, k=5):
+    #     y = dt_train['target']
+    #     X = dt_train.drop(['target'], axis=1)
+    #     kf = KFold(n_splits=k, shuffle=True, random_state=self.random_seed)
+    #     # 또는 StratifiedKFold (타겟 불균형시)
+    #     # skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         
-        # models=[]
-        # for train_index, val_index in kf.split(X, y):
-        #     X_train, X_val = X[train_index], X[val_index]
-        #     y_train, y_val = y[train_index], y[val_index]
+    #     # models=[]
+    #     # for train_index, val_index in kf.split(X, y):
+    #     #     X_train, X_val = X[train_index], X[val_index]
+    #     #     y_train, y_val = y[train_index], y[val_index]
     
-        #     model, pred = self.model_train(X_train, X_val, y_train, y_val, self.out_path)
-        #     models.append({'model':model,'pred':pred})
+    #     #     model, pred = self.model_train(X_train, X_val, y_train, y_val, self.out_path)
+    #     #     models.append({'model':model,'pred':pred})
  
-        return 
+    #     return 
 
-    def inference(self, dt_test):
-        print('inference start.')
-        dt_test.head(2)      # test dataset에 대한 inference를 진행해보겠습니다.
-        # 저장된 모델을 불러옵니다.
-        out_model_path = os.path.join(self.out_path, 'saved_model.pkl')
-        with open(out_model_path, 'rb') as f:
-            model = pickle.load(f)
+    # def inference(self, dt_test):
+    #     print('inference start.')
+    #     dt_test.head(2)      # test dataset에 대한 inference를 진행해보겠습니다.
+    #     # 저장된 모델을 불러옵니다.
+    #     out_model_path = os.path.join(self.out_path, 'saved_model.pkl')
+    #     with open(out_model_path, 'rb') as f:
+    #         model = pickle.load(f)
 
-        X_test = dt_test.drop(['target'], axis=1)
+    #     X_test = dt_test.drop(['target'], axis=1)
 
-        # Test dataset에 대한 inference를 진행합니다.
-        real_test_pred = model.predict(X_test)
-        #real_test_pred          # 예측값들이 출력됨을 확인할 수 있습니다.
+    #     # Test dataset에 대한 inference를 진행합니다.
+    #     real_test_pred = model.predict(X_test)
+    #     #real_test_pred          # 예측값들이 출력됨을 확인할 수 있습니다.
 
-        # 앞서 예측한 예측값들을 저장합니다.
-        preds_df = pd.DataFrame(real_test_pred.astype(int), columns=["target"])
-        preds_df.to_csv(os.path.join(self.out_path,'output.csv'), index=False)
-        return preds_df
+    #     # 앞서 예측한 예측값들을 저장합니다.
+    #     preds_df = pd.DataFrame(real_test_pred.astype(int), columns=["target"])
+    #     preds_df.to_csv(os.path.join(self.out_path,'output.csv'), index=False)
+    #     return preds_df
 
     def load_data_pkl(self, data_path):
         try:

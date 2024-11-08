@@ -70,8 +70,7 @@ def main():
 
     # logger 객체만 제거한 복사본 생성
     config_to_save = {k: v for k, v in config.items() if k != 'logger'}
-
-    config_log_path = os.path.join(base_path, 'config_log.yaml')
+    config_log_path = os.path.join(config_path, f'config_log_{utils.get_unique_filename()}.yaml')
     # YAML 파일로 저장
     with open(config_log_path, 'w', encoding='utf-8') as f:
         yaml.dump(
@@ -279,7 +278,6 @@ def main():
     logger.info('>>>>Test dataset에 대한 inference 시작...')
     real_test_pred = model.predict(X_test)
     # #real_test_pred          # 예측값들이 출력됨을 확인할 수 있습니다.
-
     # # 앞서 예측한 예측값들을 저장합니다.
     preds_df = pd.DataFrame(real_test_pred.astype(int), columns=["target"])
 
@@ -287,7 +285,7 @@ def main():
     preds_df.to_csv(out_pred_path, index=False)
     logger.info(f'Inference 결과 저장 완료 : {out_pred_path}')
     logger.info(f'{preds_df.head(3)}')
-    model.inference(dt_test)
+    X_test = dt_test.drop(['target'], axis=1)
     #visualizer = Visualizer(config)
 if __name__ == '__main__':
     freeze_support()

@@ -25,3 +25,6 @@ dabl
 pyjanitor
 shap
 kneed
+ydata-profiling
+ydata-profiling[notebook]
+
