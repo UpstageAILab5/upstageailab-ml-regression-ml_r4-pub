@@ -16,7 +16,7 @@ import warnings
 from tqdm import tqdm
 
 from src.utils import Utils
-
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 get_unique_filename = Utils.get_unique_filename
 warnings.filterwarnings('ignore')
 
@@ -169,36 +169,81 @@ class FeatureEngineer():
         self.logger_instance.setup_logger(log_file='eda')
         self.logger = self.logger_instance.logger
         self.logger.info('#### Init Feature Engineering... ')
-        self.out_path = config.get('out_path')
-        self.random_seed = config.get('random_seed', 2024)
+        self.prep_path = config.get('path').get('prep')
+        self.out_path = config.get('path').get('out')
+        self.random_seed = config.get('random_seed', 2023)
     ### Feature engineering
-    def feature_engineering(self, concat_select, flag_add=False):
+    def feature_engineering(self, concat, flag_add=False):
         self.logger.info('#### Feature Engineering 시작')
-        concat_select = self._prep_feat(concat_select)
+        self.logger.info(f'Feature EngineeringBaseline...')
+        concat_select = self._prep_feat(concat)
+
         dt_train, dt_test, continuous_columns_v2, categorical_columns_v2 = self.split_train_test(concat_select)
-        dt_train, dt_test, label_encoders = self.encode_label(dt_train, dt_test, categorical_columns_v2)
+
+        #dt_train, dt_test, label_encoders = self.encode_label(dt_train, dt_test, categorical_columns_v2)
+        label_encoders = {}
+        concat_scaled = Utils.concat_train_test(dt_train, dt_test)
         if flag_add:
             self.logger.info('#### Feature Engineering 완료 - 거리 분석 포함 예정; x, y val 생성 보류.')
-            return {'dt_train': dt_train, 'dt_test': dt_test, 'label_encoders': label_encoders, 'continuous_columns_v2': continuous_columns_v2, 'categorical_columns_v2': categorical_columns_v2}
+            concat_scaled.to_csv(os.path.join(self.prep_path, 'concat_scaled.csv'), index=False)
+            return {'concat_scaled': concat_scaled, 'dt_train': dt_train, 'dt_test': dt_test, 'label_encoders': label_encoders, 'continuous_columns_v2': continuous_columns_v2, 'categorical_columns_v2': categorical_columns_v2}
         else:
             X_train, X_val, y_train, y_val = self._prep_x_y_split_target(dt_train)
             self.logger.info('#### Feature Engineering 완료 - 거리 분석 제외; x, y val 생성')
             return {'X_train': X_train, 'X_val': X_val, 'y_train': y_train, 'y_val': y_val, 'dt_test': dt_test, 'label_encoders': label_encoders, 'continuous_columns_v2': continuous_columns_v2, 'categorical_columns_v2': categorical_columns_v2}
     
-    def _prep_feat(self, concat_select):
+    @staticmethod
+    def calculate_vif(df, threshold=10):
+        """
+        VIF 계산 및 임계값 이상인 컬럼 반환
+        """
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("입력은 pandas DataFrame이어야 합니다.")
+            
+        # 데이터 전처리
+        df_clean = df.copy()
+        
+        # inf 값을 nan으로 변환
+        df_clean = df_clean.replace([np.inf, -np.inf], np.nan)
+        
+        # nan 값을 중앙값으로 대체
+        for col in df_clean.columns:
+            df_clean[col] = df_clean[col].fillna(df_clean[col].median())
+        
+        # VIF 계산
+        vif_data = pd.DataFrame()
+        vif_data["Variable"] = df_clean.columns
+        
+        try:
+            vif_data["VIF"] = [variance_inflation_factor(df_clean.values, i) 
+                              for i in range(df_clean.shape[1])]
+            
+            # VIF가 inf인 경우 처리
+            vif_data["VIF"] = vif_data["VIF"].replace([np.inf, -np.inf], np.nan)
+            vif_data["VIF"] = vif_data["VIF"].fillna(threshold + 1)
+            
+            print("VIF 계산 결과:")
+            print(vif_data.sort_values('VIF', ascending=False))
+            
+            return vif_data[vif_data["VIF"] >= threshold]["Variable"].tolist()
+        
+        except Exception as e:
+            print(f"VIF 계산 중 오류 발생: {str(e)}")
+            return []
+    def _prep_feat(self, concat):
         self.logger.info('### Preparing Features...')
         self.logger.info('시군구, 년월 등 분할할 수 있는 변수들은 세부사항 고려를 용이하게 하기 위해 모두 분할해 주겠습니다.')
-        concat_select['구'] = concat_select['시군구'].map(lambda x : x.split()[1])
-        concat_select['동'] = concat_select['시군구'].map(lambda x : x.split()[2])
-        del concat_select['시군구']
+        concat['구'] = concat['시군구'].map(lambda x : x.split()[1])
+        concat['동'] = concat['시군구'].map(lambda x : x.split()[2])
+        del concat['시군구']
 
-        concat_select['계약년'] = concat_select['계약년월'].astype('str').map(lambda x : x[:4])
-        concat_select['계약월'] = concat_select['계약년월'].astype('str').map(lambda x : x[4:])
-        del concat_select['계약년월']
+        concat['계약년'] = concat['계약년월'].astype('str').map(lambda x : x[:4])
+        concat['계약월'] = concat['계약년월'].astype('str').map(lambda x : x[4:])
+        del concat['계약년월']
         self.logger.info('시군구 -> 구, 동 / 계약년월 -> 계약년, 계약월 변수 분할 생성 완료')
-        self.logger.info(concat_select.columns)
+        self.logger.info(concat.columns)
         self.logger.info('## 강남 지역: 강서구, 영등포구, 동작구, 서초구, 강남구, 송파구, 강동구 외 구 분리 시작')
-        all = list(concat_select['구'].unique())
+        all = list(concat['구'].unique())
         gangnam = ['강서구', '영등포구', '동작구', '서초구', '강남구', '송파구', '강동구']
         gangbuk = [x for x in all if x not in gangnam]
 
@@ -206,30 +251,31 @@ class FeatureEngineer():
 
         # 강남의 여부를 체크합니다.
         is_gangnam = []
-        for x in concat_select['구'].tolist() :
+        for x in concat['구'].tolist() :
             if x in gangnam :
                 is_gangnam.append(1)
             else :
                 is_gangnam.append(0)
 
         # 파생변수를 하나 만릅니다.
-        concat_select['강남여부'] = is_gangnam
-        self.logger.info(concat_select.columns)
+        concat['강남여부'] = is_gangnam
+        self.logger.info(concat.columns)
         # 건축년도 분포는 아래와 같습니다. 특히 2005년이 Q3에 해당합니다.
         # 2009년 이후에 지어진 건물은 10%정도 되는 것을 확인할 수 있습니다.
-        concat_select['건축년도'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.8, 0.9])
+        concat['건축년도'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.8, 0.9])
         self.logger.info('따라서 2009년 이후에 지어졌으면 비교적 신축이라고 판단하고, 신축 여부 변수를 제작해보도록 하겠습니다.')
-        concat_select['신축여부'] = concat_select['건축년도'].apply(lambda x: 1 if x >= 2009 else 0)
-        concat_select.head(1)       # 최종 데이터셋은 아래와 같습니다.
-        self.logger.info(f'최종 데이터셋 크기: {concat_select.shape}')
-        return concat_select
+        concat['신축여부'] = concat['건축년도'].apply(lambda x: 1 if x >= 2020 else 0) # 2009
+        cols_feat = ['구', '동','계약년', '계약월','강남여부','신축여부']
+        concat[cols_feat].to_csv(os.path.join(self.prep_path, 'feat_baseline.csv'), index=False)
+        concat.head(1)       # 최종 데이터셋은 아래와 같습니다.
+        self.logger.info(f'최종 데이터셋 크기: {concat.shape}')
+        return concat
 
-    def split_train_test(self, concat_select):
+    def split_train_test(self, concat):
         # 이제 다시 train과 test dataset을 분할해줍니다. 위에서 제작해 놓았던 is_test 칼럼을 이용합니다.
         self.logger.info('#### is_test 칼럼을 이용해 train과 test dataset을 분할합니다.')
-        dt_train = concat_select.query('is_test==0')
-        dt_test = concat_select.query('is_test==1')
-
+        dt_train = concat.query('is_test==0')
+        dt_test = concat.query('is_test==1')
         # 이제 is_test 칼럼은 drop해줍니다.
         dt_train.drop(['is_test'], axis = 1, inplace=True)
         dt_test.drop(['is_test'], axis = 1, inplace=True)
@@ -346,6 +392,7 @@ class Clustering:
         
         # 특성 데이터 준비
         X = df[features].copy()
+        
         n_samples = len(X)
         
         # 데이터 스케일링
@@ -512,9 +559,10 @@ class XAI:
         self.logger_instance = config.get('logger')
         self.logger_instance.setup_logger(log_file='feature')
         self.logger = self.logger_instance.logger
+        self.logger.info('XAI 클래스 초기화 완료')
 
-    def shap_summary(self, model, X_train, X_val, y_val, y_train):
-  
+    def shap_summary(self, model, X_train, X_val):
+        
                 # Explain the model predictions using SHAP
         explainer = shap.Explainer(model, X_train)  # Create SHAP explainer
         shap_values = explainer(X_val)  # Calculate SHAP values for the test set

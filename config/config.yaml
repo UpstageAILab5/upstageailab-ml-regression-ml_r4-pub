@@ -1,13 +1,20 @@
 # config.yaml
-target: 'target'
+
+name:
+  dataset_name: encoded
+  split_type: hold_out
+  model_name: random_forest
+
+target: target
 thr_ratio_outlier: 0.01
 thr_ratio_null: 0.9
+thr_detect_categorical: 1e-7
+thr_null: 1000000
 time_delay: 3
 random_seed: 2024
-target: price
 
 model_params:
-  n_estimators: 100
+  n_estimators: 3000
   max_depth: 5
   learning_rate: 0.01
 data_paths:
@@ -17,7 +24,13 @@ features:
   - feature1
   - feature2
   - feature3
-  
+
+wandb:
+  project: project-regression_house_price     # 필수: wandb 프로젝트명
+  entity: joon          # 필수: wandb 사용자/조직명
+  group: group-ml4   # 선택: 실험 그룹명
+
+
 sweep_configs:
   xgboost:
     method: bayes
@@ -44,3 +57,83 @@ sweep_configs:
       min_samples_split: 2
       min_samples_leaf: 1
       max_features: log2
+
+
+models:
+  xgboost:
+    n_estimators:
+      min: 100
+      max: 1000
+      distribution: int_uniform
+    max_depth:
+      min: 3
+      max: 10
+      distribution: int_uniform
+    learning_rate:
+      min: 0.01
+      max: 0.3
+      distribution: log_uniform
+    subsample:
+      min: 0.6
+      max: 1.0
+      distribution: uniform
+    colsample_bytree:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+    gamma:
+      min: 0.0
+      max: 5.0
+      distribution: uniform
+    reg_lambda:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    alpha:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    min_child_weight:  # 이 파라미터가 없었다면 추가
+      distribution: int
+      min: 1
+      max: 7
+
+
+  lightgbm:
+    n_estimators:
+      min: 100
+      max: 1000
+      distribution: int_uniform
+    max_depth:
+      min: 3
+      max: 10
+      distribution: int_uniform
+    learning_rate:
+      min: 0.01
+      max: 0.3
+      distribution: log_uniform
+    subsample:
+      min: 0.6
+      max: 1.0
+      distribution: uniform
+    colsample_bytree:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+    lambda_l1:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    lambda_l2:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    min_data_in_leaf:
+      min: 10
+      max: 100
+      distribution: int_uniform
+    feature_fraction:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+

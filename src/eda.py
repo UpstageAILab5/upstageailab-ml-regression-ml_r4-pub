@@ -19,7 +19,7 @@ class EDA:
         self.logger_instance = config.get('logger')
         self.logger_instance.setup_logger(log_file='eda')
         self.logger = self.logger_instance.logger
-        self.out_path = config.get('out_path')
+        self.out_path = config.get('path').get('out')
         self.time_delay = 3
 
     def automated_eda(self, df: pd.DataFrame, target_col: str = None) -> pd.DataFrame:

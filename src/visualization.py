@@ -22,7 +22,7 @@ class Visualizer:
         self.logger_instance.setup_logger(log_file='visualization')
         self.logger = self.logger_instance.logger
         self.logger.info('## Visualizer 클래스 초기화')
-        self.save_dir = config.get('out_path')
+        self.save_dir = config.get('path').get('out')
         self.time_delay = config.get('time_delay', 3)
         
         # wandb 초기화

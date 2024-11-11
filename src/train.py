@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 class Model():
     def __init__(self, config):
         self.config = config
-        self.out_path = config.get('out_path')
+        self.out_path = config.get('path').get('out')
         self.random_seed = config.get('random_seed')
         self.logger_instance = config.get('logger')
         self.logger_instance.setup_logger(log_file='preprocessing')
@@ -37,7 +37,7 @@ class Model():
         self.logger.info(f"\n=== 교차 검증 시작 ===")
         self.logger.info(f"전체 데이터셋 shape - X: {X.shape}, y: {y.shape}")
         
-        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        kf = KFold(n_splits=5, shuffle=True, random_state=self.random_seed)
         rmse_scores = []
         
         for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
@@ -77,7 +77,7 @@ class Model():
         self.logger.info(f'개별 RMSE: {[f"{score:,.2f}" for score in rmse_scores]}')
         
         return model, mean_rmse
-    def model_train(self, X, y, model_name='xgboost', type='default'):
+    def model_train(self, X, y, model_name='xgboost', type='baseline'):
     # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
         #model = RandomForestRegressor(n_estimators=5, criterion='squared_error', random_state=1, n_jobs=-1)
         
@@ -94,14 +94,16 @@ class Model():
                 subsample=config.get('subsample'), 
             )
         elif model_name == 'random_forest':
-            model = RandomForestRegressor(
-                    n_estimators=config.get('n_estimators'),
-                    max_depth=config.get('max_depth'),
-                    min_samples_split=config.get('min_samples_split'),
-                    min_samples_leaf=config.get('min_samples_leaf'),
-                    max_features=config.get('max_features')
-            )
-        
+            # model = RandomForestRegressor(
+            #         n_estimators=config.get('n_estimators'),
+            #         max_depth=config.get('max_depth'),
+            #         min_samples_split=config.get('min_samples_split'),
+            #         min_samples_leaf=config.get('min_samples_leaf'),
+            #         max_features=config.get('max_features')
+            # )
+            # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
+            model = RandomForestRegressor(n_estimators=5, criterion='squared_error', random_state=1, n_jobs=-1)
+            
         # smote = SMOTE(random_state=42)
         # X_train, y_train = smote.fit_resample(X_train, y_train)
         # Recursive Feature Elimination 예시
@@ -123,13 +125,15 @@ class Model():
             # y = np.hstack((y_train, y_val))  # Use hstack since y is a 1D array
             model, rmse_avg = self.cross_validate_and_evaluate(model, X, y)
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
+            self.logger.info(f'mean RMSE for val data set: {rmse_avg}')
 
         else:
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
-            model.fit(X_train, y_train)
+            model.fit(X_train, y_train)#, early_stopping_rounds=50,verbose=100)
+        
         pred = model.predict(X_val)
         rmse = np.sqrt(metrics.mean_squared_error(y_val, pred))
-        self.logger.info(f'RMSE cross validation {type}\nmean RMSE for val data set: {rmse_avg}')
+        self.logger.info(f'RMSE {type}: {rmse}')
             # 회귀 관련 metric을 통해 train/valid의 모델 적합 결과를 관찰합니다.
         # 학습된 모델을 저장합니다. Pickle 라이브러리를 이용하겠습니다.
         out_path = os.path.join(self.out_path,f'saved_model_{model_name}_{type}.pkl' )
