@@ -106,12 +106,75 @@ def distance_apt(df_source,  dict_target,  feature_source=['좌표X', '좌표Y']
         # 데이터프레임간 결합을 합니다.
     else:
         df_target = dict_target
+    target_col = f'{target}_거리'
+
     df_source = pd.merge(df_source, df_target, how="inner", on="구")
         # 아까 제작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
-    df_source[target] = df_source.apply(lambda row: haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
-    return df_source
-
+    df_source[target_col] = df_source.apply(lambda row: haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
+    return df_source, [target_col]
 def distance_analysis(building_df, target_feature, building_coor, target_coor, target):
+    """
+    Haversine 거리를 사용한 거리 분석
+    """
+    # 반경별 계산
+    distance_1 = 200
+    distance_2 = 500
+    distance_3 = 1500
+    radius_ranges = {
+        '0-1': distance_1,
+        '1-2': distance_2,
+        '2-3': distance_3
+    }
+    
+    # 좌표 검증 및 변환
+    building_transformed = []
+    for _, row in tqdm(building_df.iterrows(), desc="건물 좌표 검증"):
+        x, y = row[building_coor['x']], row[building_coor['y']]
+        building_transformed.append((x, y))
+    
+    target_transformed = []
+    for _, row in tqdm(target_feature.iterrows(), desc=f"{target} 좌표 검증"):
+        lon, lat = row[target_coor['x']], row[target_coor['y']]
+        target_transformed.append((lon, lat))
+    
+    # 거리 계산
+    created_columns = []
+    
+    for zone_name, radius in radius_ranges.items():
+        count_col = f'{target}_{zone_name}_count'
+        short_col = f'{target}_{zone_name}_shortest_distance'
+        zone_col = f'{target}_{zone_name}_zone_type'
+        
+        building_df[count_col] = 0
+        building_df[short_col] = np.inf
+        building_df[zone_col] = 0
+        
+        for i, (bx, by) in enumerate(building_transformed):
+            for tx, ty in target_transformed:
+                distance = haversine_distance(by, bx, ty, tx)
+                
+                # Count
+                if distance <= radius:
+                    building_df.at[i, count_col] += 1
+                
+                # Shortest Distance
+                if distance < building_df.at[i, short_col]:
+                    building_df.at[i, short_col] = distance
+                
+                # Zone Type
+                if distance <= radius:
+                    building_df.at[i, zone_col] = 1
+        
+        created_columns.extend([count_col, short_col, zone_col])
+    
+    # 최종 결과 검증
+    print("\n=== 최종 결과 ===")
+    for col in created_columns:
+        value_counts = building_df[col].value_counts().sort_index()
+        print(f"\n{col}:\n{value_counts}")
+    
+    return building_df, created_columns
+def distance_analysis_old(building_df, target_feature, building_coor, target_coor, target):
     """
     BallTree를 사용한 거리 분석
     
@@ -352,28 +415,29 @@ def main():
     data_path = os.path.join(base_path, 'data')
     prep_path = os.path.join(data_path, 'preprocessed')
 
-    df = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'), index_col=0)
-    ### 1. 좌표 null 값 외부 데이터로 대체
-    df_combined = main_prep_null_coordinate(df_raw=df, prep_path=prep_path)
-    ##############
+    # df = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'), index_col=0)
+    # ### 1. 좌표 null 값 외부 데이터로 대체
+    # df_combined = main_prep_null_coordinate(df_raw=df, prep_path=prep_path)
+    # ##############
     # 2. 남은 결측치, 도로명 주소 기준으로 최빈값 imputation
     feature_source = ['좌표X', '좌표Y']
-    df_combined = _fill_missing_values(df, target_cols=feature_source, group_cols=['도로명주소', '시군구', '도로명', '아파트명'], is_categorical=False)
-    print(f'처리 후 결측치:\n{df_combined[feature_source].isnull().sum()}')
-    ###
+    # df_combined = _fill_missing_values(df, target_cols=feature_source, group_cols=['도로명주소', '시군구', '도로명', '아파트명'], is_categorical=False)
+    # print(f'처리 후 결측치:\n{df_combined[feature_source].isnull().sum()}')
+    # ###
     ### 3. 건물 좌표 기준 대상 좌표 거리 분석: 강남 아파트
     feature_target = ['대장_좌표X', '대장_좌표Y']
-    df_combined[["시", "구", "동"]] = df_combined["시군구"].str.split(" ", expand=True)
-    print(df_combined.columns)
-    df_target = pd.DataFrame([{"구": k, feature_target[0]: v[1], feature_target[1]: v[0]} for k, v in lead_house.items()])
-    # Custom 함수 사용
-    df_combined, cols_distance = distance_analysis(building_df=df_combined, target_feature=df_target, building_coor={'x': '좌표X', 'y': '좌표Y'}, target_coor={'x': '대장_좌표X', 'y': '대장_좌표Y'}, target='gangnam_apt')
-    # Stages.ai 게시판 함수 사용 
-    df_combined = distance_apt(df_source=df_combined, dict_target=lead_house, feature_source=feature_source, feature_target=feature_target)
-    #(둘 중 하나만 사용해도 무방. 검증 필요)
-    concat = pd.read_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index_col=0)
+    # df_combined[["시", "구", "동"]] = df_combined["시군구"].str.split(" ", expand=True)
+    # print(df_combined.columns)
+    # df_target = pd.DataFrame([{"구": k, feature_target[0]: v[1], feature_target[1]: v[0]} for k, v in lead_house.items()])
+    # # Custom 함수 사용
+    # # df_combined, cols_distance = distance_analysis(building_df=df_combined, target_feature=df_target, building_coor={'x': '좌표X', 'y': '좌표Y'}, target_coor={'x': '대장_좌표X', 'y': '대장_좌표Y'}, target='gangnam_apt')
+    # # Stages.ai 게시판 함수 사용 
+    # df_combined, col_apt = distance_apt(df_source=df_combined, dict_target=lead_house, feature_source=feature_source, feature_target=feature_target)
+    # #(둘 중 하나만 사용해도 무방. 검증 필요)
+
+    df_combined = pd.read_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index_col=0)
     #############
-    ### 4. 건물 좌표 기준 대상 좌표 거리 분석: 지하철, 버스
+    ### 4. 건물 좌표 ���준 대상 좌표 거리 분석: 지하철, 버스
     df_coor = {'x': '좌표X', 'y': '좌표Y'}
     subway_coor = {'x': '경도', 'y':'위도' }
     bus_coor = {'x': 'X좌표', 'y': 'Y좌표'}
@@ -384,15 +448,18 @@ def main():
     subway_feature = pd.read_csv(path_subway_feature)
     bus_feature = pd.read_csv(path_bus_feature, index_col=0)
     
-    concat, subway_cols = distance_analysis(
-            concat, subway_feature, df_coor, subway_coor, target='subway'
+    df_combined, col_subway  = distance_analysis_old(
+            df_combined, subway_feature, df_coor, subway_coor, target='subway'
         )
-    concat, bus_cols = distance_analysis(concat, bus_feature, df_coor, bus_coor, target='bus')
+    df_combined, col_bus = distance_analysis_old(df_combined, bus_feature, df_coor, bus_coor, target='bus')
+
+    #df_combined, col_subway = distance_apt(df_combined, subway_feature, list(df_coor.values()),list(subway_coor.values()),target='subway')
+    #df_combined, col_bus = distance_apt(df_combined, bus_feature, list(df_coor.values()),list(bus_coor.values()),target='bus')
     #df.drop(df.columns[0], axis=1, inplace=True)
     #concat.to_csv(path_feat_add)
-    transport_cols = subway_cols + bus_cols
+    total_cols = col_subway + col_bus# +col_apt
     # feat_cols = cols_distance + transport_cols
-    # print(feat_cols)
-    concat.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_transport.csv'), index=True)
+    print(total_cols)
+    df_combined.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_complete.csv'), index=True)
 if __name__ == "__main__":
     main()

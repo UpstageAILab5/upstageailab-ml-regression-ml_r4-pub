@@ -19,6 +19,7 @@ import yaml
 from sklearn.preprocessing import StandardScaler
 import re
 # 메모리 정리
+from tqdm import tqdm
 import gc
 gc.collect()
 get_unique_filename = Utils.get_unique_filename
@@ -157,6 +158,61 @@ def concat_feature(concat, feat_transport, feat_cluster, logger):
     logger.info(f'Shape after concat: {concat.shape}')
     logger.info(f'Final columns: {concat.columns.tolist()}')
     return concat
+def categorical_numeric(df):
+    # 파생변수 제작으로 추가된 변수들이 존재하기에, 다시한번 연속형과 범주형 칼럼을 분리해주겠습니다.
+    continuous_columns_v2 = []
+    categorical_columns_v2 = []
+
+    for column in df.columns:
+        if pd.api.types.is_numeric_dtype(df[column]):
+            continuous_columns_v2.append(column)
+        else:
+            categorical_columns_v2.append(column)
+    return continuous_columns_v2, categorical_columns_v2
+def null_fill(concat_select):
+    # Interpolation
+    # 연속형 변수는 선형보간을 해주고, 범주형변수는 알수없기에 “unknown”이라고 임의로 보간해 주겠습니다.
+    concat_select.info()
+    # 본번, 부번의 경우 float로 되어있지만 범주형 변수의 의미를 가지므로 object(string) 형태로 바꾸어주고 아래 작업을 진행하겠습니다.
+    concat_select['본번'] = concat_select['본번'].astype('str')
+    concat_select['부번'] = concat_select['부번'].astype('str')
+    # 먼저, 연속형 변수와 범주형 변수를 위 info에 따라 분리해주겠습니다.
+    continuous_columns = []
+    categorical_columns = []
+
+    for column in concat_select.columns:
+        if pd.api.types.is_numeric_dtype(concat_select[column]):
+            continuous_columns.append(column)
+        else:
+            categorical_columns.append(column)
+
+    print("연속형 변수:", continuous_columns)
+    print("범주형 변수:", categorical_columns)
+
+    # 범주형 변수에 대한 보간
+    concat_select[categorical_columns] = concat_select[categorical_columns].fillna('NULL')
+
+    # 연속형 변수에 대한 보간 (선형 보간)
+    concat_select[continuous_columns] = concat_select[continuous_columns].interpolate(method='linear', axis=0)
+    concat_select.isnull().sum()         # 결측치가 보간된 모습을 확인해봅니다.
+
+    # 이상치 제거 이전의 shape은 아래와 같습니다.
+    print(concat_select.shape)
+    # 대표적인 연속형 변수인 “전용 면적” 변수 관련한 분포를 먼저 살펴보도록 하겠습니다.
+    # fig = plt.figure(figsize=(7, 3))
+    # try:
+    #     sns.boxplot(data = concat_select, x = '전용면적(m)', color='lightgreen')
+    # except:
+    #     sns.boxplot(data = concat_select, x = '전용면적', color='lightgreen')
+
+    # title = '전용면적 분포'
+    # plt.title(title)
+    # plt.xlabel('Area')
+    # plt.show()
+    # plt.savefig(os.path.join(self.out_path, title +'.png'), dpi=300, bbox_inches='tight')
+    return concat_select
+
+
 def main():
     ########################################################################################################################################
     # Setup
@@ -264,7 +320,7 @@ def main():
     # logger.info(f'높은 VIF 값(>10)을 가진 컬럼들: {high_vif_cols}')
   
     #concat = concat[col_to_select + col_id]
-    print(concat.columns)
+ 
     dataset_name = config.get('name').get('dataset_name')
     print('##########################')
     #####
@@ -294,17 +350,45 @@ def main():
         concat = pd.read_csv(os.path.join(prep_path, 'df_scaled.csv'), index_col=0)
     elif config.get('name').get('dataset_name') == 'feat_all3':
         concat = pd.read_csv(os.path.join(prep_path, 'df_feat_all3_encoded.csv'), index_col=0)
+    elif config.get('name').get('dataset_name') == 'coord_null_filled':
+        concat = pd.read_csv(os.path.join(prep_path, 'df_combined_dist_feat_null_filled.csv'), index_col=0)
     else:
         print('else')
+
+    df_profile = DataPrep.get_data_profile(concat)
+    df_profile.to_csv(os.path.join(prep_path, 'profile_after_null_filled.csv'))
+    print(f'Remove cols: {remove_cols}')
+    concat.drop(columns=remove_cols, inplace=True)
+    cols_to_select =['시군구', '번지', '본번', '부번', '아파트명', '전용면적', '계약년월', '계약일', '층', '건축년도',
+       '도로명', '등기신청일자', '중개사소재지', 'k-단지분류(아파트,주상복합등등)', '단지소개기존clob', 'k-복도유형',
+       'k-난방방식', 'k-전체동수', 'k-건설사(시공사)', 'k-시행사', 'k-전용면적별세대현황(60㎡이하)',
+       'k-전용면적별세대현황(60㎡~85㎡이하)', 'k-85㎡~135㎡이하', 'k-홈페이지', 'k-등록일자',
+       '고용보험관리번호', '건축면적', '주차대수', '동', 'gangnam_apt_shortest_distance',
+       'gangnam_apt_zone_type', '대장아파트_거리']+['is_test', 'target']
+
+    existing_columns = [col for col in cols_to_select if col in concat.columns]
+    print(f'Existing columns: {len(existing_columns)}/{len(cols_to_select)}')
+    concat = concat[existing_columns]
+    columns_with_null = concat.columns[concat.isnull().any()].tolist()
+
+    print(f'Fill missing values for {len(columns_with_null)} columns: {columns_with_null}')
+    
+    # for col in tqdm(columns_with_null):
+    #     concat[col] = null_fill(concat, col)
+    concat = feat_eng._prep_feat(concat)
+    concat = null_fill(concat)
+    #concat = DataPrep._fill_missing_values(concat,  target_cols=['target']
     ########################################################################################################################################
     dt_train, dt_test = Utils.unconcat_train_test(concat)
-    logger.info(f'>>>>Train shape: {dt_train.shape}, {dt_train.columns}\nTest shape: {dt_test.shape}, {dt_test.columns}')
     y_train = dt_train['target']
     X_train = dt_train.drop(['target'], axis=1)
-    
-    print(X_train.columns)
     X_test =dt_test
+    continuous_columns_v2, categorical_columns_v2 = categorical_numeric(X_train)
+    X_train, X_test, label_encoders = feat_eng.encode_label(X_train, X_test, categorical_columns_v2)
+    logger.info(f'>>>>Train shape: {dt_train.shape}, {dt_train.columns}\nTest shape: {dt_test.shape}, {dt_test.columns}')
     
+   
+    ### 
     X_train.columns = [re.sub(r'[^\w]', '_', col) for col in X_train.columns]
     X_test.columns = [re.sub(r'[^\w]', '_', col) for col in X_test.columns]
     print(X_train.columns)

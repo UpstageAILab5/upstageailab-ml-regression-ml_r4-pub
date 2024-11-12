@@ -138,8 +138,9 @@ class DataPrep():
                 })
                 
             profile[col] = stats
-        
-        return pd.DataFrame.from_dict(profile, orient='index')
+        df_profile = pd.DataFrame.from_dict(profile, orient='index')
+
+        return df_profile
     
     def _load_data_concat_train_test(self):
         try:
@@ -374,38 +375,38 @@ class DataPrep():
         self.logger.info('수치형 변수 결측치 처리 완료')
         self.logger.info(concat_select[numerical_columns].isnull().sum())
         return concat_select
-#     def _interpolation(self, concat):
-#         # Interpolation
-#         self.logger.info('#### Interpolation starts...\n연속형 변수는 선형보간을 해주고, 범주형변수는 알수없기에 “unknown”이라고 임의로 보간해 주겠습니다.')
-#         self.logger.info('본번, 부번의 경우 float로 되어있지만 범주형 변수의 의미를 가지므로 object(string) 형태로 바꾸어주고 아래 작업을 진행하겠습니다.')
-#         concat_select = concat.copy()
+    def interpolation_baseline(self, concat):
+        # Interpolation
+        self.logger.info('#### Interpolation starts...\n연속형 변수는 선형보간을 해주고, 범주형변수는 알수없기에 “unknown”이라고 임의로 보간해 주겠습니다.')
+        self.logger.info('본번, 부번의 경우 float로 되어있지만 범주형 변수의 의미를 가지므로 object(string) 형태로 바꾸어주고 아래 작업을 진행하겠습니다.')
+        concat_select = concat.copy()
         
-#         concat_select['본번'] = concat_select['본번'].astype('str')
-#         concat_select['부번'] = concat_select['부번'].astype('str')
-#         # 먼저, 연속형 변수와 범주형 변수를 위 info에 따라 분리해주겠습니다.
-#         continuous_columns = []
-#         categorical_columns = []
-#         for column in concat_select.columns:
-#             if pd.api.types.is_numeric_dtype(concat_select[column]):
-#                 continuous_columns.append(column)
-#             else:
-#                 categorical_columns.append(column)
-#         self.logger.info(f"연속형 변수: {continuous_columns}")
-#         self.logger.info(f"범주형 변수: {categorical_columns}")
-#         # 범주 변수에 대한 보간
-#         #concat_select[categorical_columns] = concat_select[categorical_columns].fillna('NULL')
-#         # 연속형 변수에 대한 보간 (선형 보간)
-#    #     coord_cols=['좌표X', '좌표Y']
+        concat_select['본번'] = concat_select['본번'].astype('str')
+        concat_select['부번'] = concat_select['부번'].astype('str')
+        # 먼저, 연속형 변수와 범주형 변수를 위 info에 따라 분리해주겠습니다.
+        continuous_columns = []
+        categorical_columns = []
+        for column in concat_select.columns:
+            if pd.api.types.is_numeric_dtype(concat_select[column]):
+                continuous_columns.append(column)
+            else:
+                categorical_columns.append(column)
+        self.logger.info(f"연속형 변수: {continuous_columns}")
+        self.logger.info(f"범주형 변수: {categorical_columns}")
+        # 범주 변수에 대한 보간
+        #concat_select[categorical_columns] = concat_select[categorical_columns].fillna('NULL')
+        # 연속형 변수에 대한 보간 (선형 보간)
+   #     coord_cols=['좌표X', '좌표Y']
         
-#         concat_select[categorical_columns] = self._fill_missing_values(concat_select, categorical_columns
-#                                                                        , group_cols=group_cols, is_categorical=True)
-#         concat_select[continuous_columns] = self._fill_missing_values(concat_select, continuous_columns
-#                                                                        , group_cols=group_cols, is_categorical=False)
-#         #concat_select[continuous_columns] = concat_select[continuous_columns].interpolate(method='linear', axis=0)
-#         self.logger.info('결측치가 보간된 모습을 확인해봅니다.')
-#         self.logger.info(concat_select.isnull().sum())
+        concat_select[categorical_columns] = self._fill_missing_values(concat_select, categorical_columns
+                                                                       , group_cols=group_cols, is_categorical=True)
+        concat_select[continuous_columns] = self._fill_missing_values(concat_select, continuous_columns
+                                                                       , group_cols=group_cols, is_categorical=False)
+        #concat_select[continuous_columns] = concat_select[continuous_columns].interpolate(method='linear', axis=0)
+        self.logger.info('결측치가 보간된 모습을 확인해봅니다.')
+        self.logger.info(concat_select.isnull().sum())
 
-#         return concat_select
+        return concat_select
 
     # 이상치 제거 방법에는 IQR을 이용하겠습니다.
     
