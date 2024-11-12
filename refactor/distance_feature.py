@@ -99,18 +99,17 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     distance = radius * c
     return distance
 
-def distance_gangnam_apt(df_source,  dict_target,  feature_source=['좌표X', '좌표Y'], feature_target=['대장_좌표X', '대장_좌표Y']):
+def distance_apt(df_source,  dict_target,  feature_source=['좌표X', '좌표Y'], feature_target=['대장_좌표X', '대장_좌표Y'], target='대장아파트'):
         # 대장 아파트의 위경도 데이터프레임을 구성합니다.
-    df_target = pd.DataFrame([{"구": k, feature_target[0]: v[1], feature_target[1]: v[0]} for k, v in dict_target.items()])
-    # 데이터프레임간 결합을 합니다.
+    if target == '대장아파트':  
+        df_target = pd.DataFrame([{"구": k, feature_target[0]: v[1], feature_target[1]: v[0]} for k, v in dict_target.items()])
+        # 데이터프레임간 결합을 합니다.
+    else:
+        df_target = dict_target
     df_source = pd.merge(df_source, df_target, how="inner", on="구")
-    # 아까 제작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
-    df_source['대장아파트_거리'] = df_source.apply(lambda row: haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
+        # 아까 제작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
+    df_source[target] = df_source.apply(lambda row: haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
     return df_source
-
-#def distance_basic(df, feature_source=['좌표X', '좌표Y'], feature_target=['대장_좌표X', '대장_좌표Y']):
-    # df['거리'] = df.apply(lambda row: haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
-    # return df
 
 def distance_analysis(building_df, target_feature, building_coor, target_coor, target):
     """
@@ -370,7 +369,7 @@ def main():
     # Custom 함수 사용
     df_combined, cols_distance = distance_analysis(building_df=df_combined, target_feature=df_target, building_coor={'x': '좌표X', 'y': '좌표Y'}, target_coor={'x': '대장_좌표X', 'y': '대장_좌표Y'}, target='gangnam_apt')
     # Stages.ai 게시판 함수 사용 
-    df_combined = distance_gangnam_apt(df_source=df_combined, dict_target=lead_house, feature_source=feature_source, feature_target=feature_target)
+    df_combined = distance_apt(df_source=df_combined, dict_target=lead_house, feature_source=feature_source, feature_target=feature_target)
     #(둘 중 하나만 사용해도 무방. 검증 필요)
     concat = pd.read_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index_col=0)
     #############
