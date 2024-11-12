@@ -17,6 +17,7 @@ import platform
 import pprint
 import yaml
 from sklearn.preprocessing import StandardScaler
+import re
 # 메모리 정리
 import gc
 gc.collect()
@@ -287,6 +288,12 @@ def main():
         concat = pd.read_csv(os.path.join(prep_path, 'df_feat_scaled_selected.csv'), index_col=0)
     elif config.get('name').get('dataset_name') == 'encoded':
         concat = pd.read_csv(os.path.join(prep_path, 'df_encoded.csv'), index_col=0)
+    elif config.get('name').get('dataset_name') == 'concat_scaled_selected':
+        concat = pd.read_csv(os.path.join(prep_path, 'df_concat_scaled_selected.csv'), index_col=0)
+    elif config.get('name').get('dataset_name') == 'df_scaled':
+        concat = pd.read_csv(os.path.join(prep_path, 'df_scaled.csv'), index_col=0)
+    elif config.get('name').get('dataset_name') == 'feat_all3':
+        concat = pd.read_csv(os.path.join(prep_path, 'df_feat_all3_encoded.csv'), index_col=0)
     else:
         print('else')
     ########################################################################################################################################
@@ -294,7 +301,13 @@ def main():
     logger.info(f'>>>>Train shape: {dt_train.shape}, {dt_train.columns}\nTest shape: {dt_test.shape}, {dt_test.columns}')
     y_train = dt_train['target']
     X_train = dt_train.drop(['target'], axis=1)
+    
+    print(X_train.columns)
     X_test =dt_test
+    
+    X_train.columns = [re.sub(r'[^\w]', '_', col) for col in X_train.columns]
+    X_test.columns = [re.sub(r'[^\w]', '_', col) for col in X_test.columns]
+    print(X_train.columns)
     ########################################################################################################################################
     ##  Model Training
     model = Model(config)

@@ -1,10 +1,20 @@
-# config.yaml
-
+path:
+  base: &id001 !!python/object/apply:pathlib.WindowsPath
+  - D:\
+  - dev
+  - upstageailab5-ml-regression-ml_r4
+  logs: D:\dev\upstageailab5-ml-regression-ml_r4\logs
+  config: D:\dev\upstageailab5-ml-regression-ml_r4\config
+  data: D:\dev\upstageailab5-ml-regression-ml_r4\data
+  prep: D:\dev\upstageailab5-ml-regression-ml_r4\data\preprocessed
+  out: D:\dev\upstageailab5-ml-regression-ml_r4\output
 name:
   dataset_name: feat_all3
   split_type: cross_validation
   model_name: lightgbm
-
+base_path: *id001
+subway_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\subway_feature.csv
+bus_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\bus_feature.csv
 target: target
 thr_ratio_outlier: 0.01
 thr_ratio_null: 0.9
@@ -12,7 +22,6 @@ thr_detect_categorical: 1e-7
 thr_null: 1000000
 time_delay: 3
 random_seed: 2024
-
 model_params:
   n_estimators: 3000
   max_depth: 5
@@ -21,16 +30,13 @@ data_paths:
   train: data/train.csv
   test: data/test.csv
 features:
-  - feature1
-  - feature2
-  - feature3
-
+- feature1
+- feature2
+- feature3
 wandb:
-  project: project-regression_house_price     # 필수: wandb 프로젝트명
-  entity: joon          # 필수: wandb 사용자/조직명
-  group: group-ml4   # 선택: 실험 그룹명
-
-
+  project: project-regression_house_price
+  entity: joon
+  group: group-ml4
 sweep_configs:
   xgboost:
     method: bayes
@@ -76,7 +82,6 @@ sweep_configs:
       lambda_l2: 0.1
       min_data_in_leaf: 20
       feature_fraction: 0.8
-
 models:
   xgboost:
     n_estimators:
@@ -115,8 +120,6 @@ models:
       distribution: int
       min: 1
       max: 7
-
-
   lightgbm:
     n_estimators:
       min: 100
@@ -154,4 +157,13 @@ models:
       min: 0.4
       max: 1.0
       distribution: uniform
-
+transport_cols:
+- subway_direct_influence_count
+- subway_indirect_influence_count
+- subway_shortest_distance
+- subway_zone_type
+- bus_station_area_count
+- bus_direct_influence_count
+- bus_indirect_influence_count
+- bus_shortest_distance
+- bus_zone_type

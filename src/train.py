@@ -12,6 +12,7 @@ from sklearn.metrics import make_scorer, mean_squared_error
 from src.feature import  XAI
 from src.utils import Utils
 import warnings
+import lightgbm as lgb
 warnings.filterwarnings('ignore')
 
 class Model():
@@ -103,7 +104,21 @@ class Model():
             # )
             # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
             model = RandomForestRegressor(n_estimators=5, criterion='squared_error', random_state=1, n_jobs=-1)
-            
+        elif model_name == 'lightgbm':
+            model = lgb.LGBMRegressor(
+                objective='regression',
+                num_leaves=config.get('num_leaves'),
+                learning_rate=config.get('learning_rate'),
+                subsample=config.get('subsample'),
+                colsample_bytree=config.get('colsample_bytree'),
+                lambda_l1=config.get('lambda_l1'),
+                lambda_l2=config.get('lambda_l2'),
+                min_data_in_leaf=config.get('min_data_in_leaf'),
+                feature_fraction=config.get('feature_fraction'),    
+                max_depth=config.get('max_depth')
+            )
+
+   
         # smote = SMOTE(random_state=42)
         # X_train, y_train = smote.fit_resample(X_train, y_train)
         # Recursive Feature Elimination 예시
