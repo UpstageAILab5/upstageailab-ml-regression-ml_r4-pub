@@ -1,0 +1,74 @@
+path:
+  base: &id001 !!python/object/apply:pathlib.WindowsPath
+  - D:\
+  - dev
+  - upstageailab5-ml-regression-ml_r4
+  logs: D:\dev\upstageailab5-ml-regression-ml_r4\logs
+  config: D:\dev\upstageailab5-ml-regression-ml_r4\config
+  data: D:\dev\upstageailab5-ml-regression-ml_r4\data
+  processed: D:\dev\upstageailab5-ml-regression-ml_r4\data\processed
+  out: D:\dev\upstageailab5-ml-regression-ml_r4\output
+name:
+  dataset_name: feat_selected
+  split_type: hold_out
+  model_name: random_forest
+base_path: *id001
+subway_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\subway_feature.csv
+bus_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\bus_feature.csv
+thr_ratio_outlier: 0.01
+thr_ratio_null: 0.9
+time_delay: 3
+random_seed: 2024
+target: target
+model_params:
+  n_estimators: 3000
+  max_depth: 5
+  learning_rate: 0.01
+data_paths:
+  train: data/train.csv
+  test: data/test.csv
+features:
+- feature1
+- feature2
+- feature3
+wandb:
+  project: project-regression_house_price
+  entity: joon
+  group: group-ml4
+sweep_configs:
+  xgboost:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      eta: 0.3
+      max_depth: 10
+      subsample: 0.6239
+      colsample_bytree: 0.5305
+      gamma: 4.717
+      reg_lambda: 5.081
+      alpha: 0.4902
+      n_estimators: 551
+  random_forest:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      n_estimators: 200
+      max_depth: 20
+      min_samples_split: 2
+      min_samples_leaf: 1
+      max_features: log2
+transport_cols:
+- subway_station_area_count
+- subway_direct_influence_count
+- subway_indirect_influence_count
+- subway_shortest_distance
+- subway_zone_type
+- bus_station_area_count
+- bus_direct_influence_count
+- bus_indirect_influence_count
+- bus_shortest_distance
+- bus_zone_type

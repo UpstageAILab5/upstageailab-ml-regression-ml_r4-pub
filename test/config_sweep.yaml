@@ -1,0 +1,52 @@
+data_paths:
+  - ['df_interpolation.csv']
+categorical_features:
+  - "k-건설사(시공사),k-관리방식,k-난방방식,k-단지분류(아파트,주상복합등등),k-복도유형,k-사용검사일-사용승인일,k-세대타입(분양형태),k-수정일자,k-시행사,경비비관리형태,관리비 업로드,기타/의무/임대/임의=1/2/3/4,단지승인일,단지신청일,도로명,번지,사용허가여부,세대전기계약방법,아파트명,cluster_dist_transport_count,cluster_select,cluster_select_count,subway_station_area_count,subway_direct_influence_count,subway_indirect_influence_count,subway_zone_type,bus_station_area_count,bus_direct_influence_count,bus_indirect_influence_count,bus_zone_type,청소비관리형태,강남여부,신축여부,구,동"
+
+numerical_features:
+  - "k-85㎡~135㎡이하,k-관리비부과면적,k-연면적,k-전용면적별세대현황(60㎡~85㎡이하),k-전용면적별세대현황(60㎡이하),k-전체동수,k-전체세대수,k-주거전용면적,건축년도,건축면적,계약일,본번,부번,전용면적,좌표X,좌표Y,주차대수,층,계약년,계약월,subway_shortest_distance,bus_shortest_distance,대장아파트_거리"
+
+selected_features:
+  - "전용면적,강남여부,신축여부,구,동,건축년도,건축면적,좌표X,좌표Y,주차대수,층,계약년,subway_shortest_distance,bus_shortest_distance,대장아파트_거리"
+
+additional_feature_paths:
+  - "feat_baseline.csv","feat_transport.csv,feat_gangnam_apt_dist.csv,feat_cluster.csv"
+
+random_states:
+  - 2024
+target_variables:
+  - 'target'
+null_strategies:
+  - 'null'
+  - 'drop'
+outlier_methods:
+  - 'zscore'
+  - 'iqr'
+  - 'null'
+outlier_thresholds:
+  - 2
+  - 3
+scaling_methods:
+  - 'custom'  # Includes the custom scaling function
+  - 'null'
+feature_engineering_methods:
+  - 'null'
+feature_selection_methods:
+  - 'all'
+  - 'correlation'
+correlation_thresholds:
+  - 0.5
+  - 0.7
+dataset_split_ratios:
+  - 0.2
+  - 0.3
+split_methods:
+  - 'holdout'
+  - 'kfold'
+k_folds:
+  - 5
+  - 10
+model_types:
+  - 'random_forest'
+  - 'xgboost'
+  - 'lightgbm'

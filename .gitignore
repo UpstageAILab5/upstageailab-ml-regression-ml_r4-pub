@@ -1,6 +1,9 @@
 data/
 *.pkl
 *.csv
+*.html
+*.json
+*.png
 # Created by https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,jupyternotebooks
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,visualstudiocode,jupyternotebooks
 

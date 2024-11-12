@@ -16,8 +16,10 @@ class EDA:
     def __init__(self, config: Dict):
         self.config = config
         self.time_delay = config.get('time_delay', 3)
-        self.logger = config.get('logger')
-        self.out_path = config.get('out_path')
+        self.logger_instance = config.get('logger')
+        self.logger_instance.setup_logger(log_file='eda')
+        self.logger = self.logger_instance.logger
+        self.out_path = config.get('path').get('out')
         self.time_delay = 3
 
     def automated_eda(self, df: pd.DataFrame, target_col: str = None) -> pd.DataFrame:
