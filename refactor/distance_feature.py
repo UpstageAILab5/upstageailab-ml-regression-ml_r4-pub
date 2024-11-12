@@ -349,26 +349,51 @@ def main():
         "중랑구" : (37.58171824083332, 127.08183326205129),
         "강북구" : (37.61186335979484, 127.02822407466175)
     }
-    
-    prep_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data','preprocessed')
-    # df_combined = main_prep_null_coordinate(df_raw=df_raw, prep_path=prep_path)
-    df_combined = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'), index_col=0)
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    data_path = os.path.join(base_path, 'data')
+    prep_path = os.path.join(data_path, 'preprocessed')
+
+    df = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'), index_col=0)
     ### 1. 좌표 null 값 외부 데이터로 대체
-    feature_source = ['좌표X', '좌표Y']
-    feature_target = ['대장_좌표X', '대장_좌표Y']
-
+    df_combined = main_prep_null_coordinate(df_raw=df, prep_path=prep_path)
+    ##############
     # 2. 남은 결측치, 도로명 주소 기준으로 최빈값 imputation
-    df_combined = _fill_missing_values(df_combined, target_cols=feature_source, group_cols=['도로명주소', '시군구', '도로명', '아파트명'], is_categorical=False)
+    feature_source = ['좌표X', '좌표Y']
+    df_combined = _fill_missing_values(df, target_cols=feature_source, group_cols=['도로명주소', '시군구', '도로명', '아파트명'], is_categorical=False)
     print(f'처리 후 결측치:\n{df_combined[feature_source].isnull().sum()}')
-
-    ### 3. 건물 좌표 기준 대상 좌표 거리 분석
-    
+    ###
+    ### 3. 건물 좌표 기준 대상 좌표 거리 분석: 강남 아파트
+    feature_target = ['대장_좌표X', '대장_좌표Y']
+    df_combined[["시", "구", "동"]] = df_combined["시군구"].str.split(" ", expand=True)
+    print(df_combined.columns)
     df_target = pd.DataFrame([{"구": k, feature_target[0]: v[1], feature_target[1]: v[0]} for k, v in lead_house.items()])
+    # Custom 함수 사용
     df_combined, cols_distance = distance_analysis(building_df=df_combined, target_feature=df_target, building_coor={'x': '좌표X', 'y': '좌표Y'}, target_coor={'x': '대장_좌표X', 'y': '대장_좌표Y'}, target='gangnam_apt')
-    
+    # Stages.ai 게시판 함수 사용 
     df_combined = distance_gangnam_apt(df_source=df_combined, dict_target=lead_house, feature_source=feature_source, feature_target=feature_target)
-    df_combined, cols_distance = distance_analysis(building_df=df_combined, target_feature=df_target, building_coor={'x': '좌표X', 'y': '좌표Y'}, target_coor={'x': '대장_좌표X', 'y': '대장_좌표Y'}, target='gangnam_apt')
-    df_combined.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index=True)
-    #df_na_coord[['좌표X', '좌표Y']]
+    #(둘 중 하나만 사용해도 무방. 검증 필요)
+    concat = pd.read_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index_col=0)
+    #############
+    ### 4. 건물 좌표 기준 대상 좌표 거리 분석: 지하철, 버스
+    df_coor = {'x': '좌표X', 'y': '좌표Y'}
+    subway_coor = {'x': '경도', 'y':'위도' }
+    bus_coor = {'x': 'X좌표', 'y': 'Y좌표'}
+    # 버스 지하철 데이터 로드
+    path_subway_feature = os.path.join(data_path, 'subway_feature.csv')
+    path_bus_feature = os.path.join(data_path, 'bus_feature.csv')
+    
+    subway_feature = pd.read_csv(path_subway_feature)
+    bus_feature = pd.read_csv(path_bus_feature, index_col=0)
+    
+    concat, subway_cols = distance_analysis(
+            concat, subway_feature, df_coor, subway_coor, target='subway'
+        )
+    concat, bus_cols = distance_analysis(concat, bus_feature, df_coor, bus_coor, target='bus')
+    #df.drop(df.columns[0], axis=1, inplace=True)
+    #concat.to_csv(path_feat_add)
+    transport_cols = subway_cols + bus_cols
+    # feat_cols = cols_distance + transport_cols
+    # print(feat_cols)
+    concat.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_transport.csv'), index=True)
 if __name__ == "__main__":
     main()
