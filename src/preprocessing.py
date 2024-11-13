@@ -45,12 +45,15 @@ class DataPrep():
         before_profile.to_csv(os.path.join(self.out_path, 'report_profile_raw.csv'))
         ######################################################################
         #concat = self._null_allocation(concat, remove_cols)
+        cols_to_remove = [col for col in remove_cols if col in concat.columns]
+
         concat = concat.drop(columns=remove_cols)
         self.logger.info(f'{remove_cols} 칼럼 제거 -> {concat.shape}\n{concat.columns}')
         concat = self._remove_null(concat)
         self.logger.info(f'결측치 처리 후 데이터 shape: {concat.shape}')
         ####
-        concat = self._interpolation(concat)
+        #concat = self._interpolation(concat)
+        concat = self.interpolation_baseline(concat)
         self.logger.info(f'보간 후 데이터 shape: {concat.shape}')
         # 대표적인 연속형 변수인 “전용 면적” 변수 관련한 분포를 먼저 살펴보도록 하겠습니다.
         fig = plt.figure(figsize=(7, 3))

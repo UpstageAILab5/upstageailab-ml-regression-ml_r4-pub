@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from pathlib import Path
 import os
 # import pygwalker as pyg
@@ -21,6 +22,9 @@ import re
 # 메모리 정리
 from tqdm import tqdm
 import gc
+
+from test_wandb_simple import log_experiment
+
 gc.collect()
 get_unique_filename = Utils.get_unique_filename
 
@@ -227,11 +231,13 @@ def main():
     ########################################################################################################################################
     # path_feat_add = os.path.join(prep_path, 'df_feat_add.csv')
     # path_prep_baseline = os.path.join(prep_path, 'prep_baseline.csv')
-    remove_cols = ['등기신청일자','거래유형','중개사소재지'] + ['k-팩스번호',
-                       'k-전화번호',
-                       'k-홈페이지',
-                       '고용보험관리번호',
-                       '단지소개기존clob']
+    remove_cols = ['등기신청일자','거래유형','중개사소재지'] 
+    
+    # + ['k-팩스번호',
+    #                    'k-전화번호',
+    #                    'k-홈페이지',
+    #                    '고용보험관리번호',
+    #                    '단지소개기존clob']
 
     df = file_cache.load_or_create(
         path_base_prep,
@@ -332,8 +338,8 @@ def main():
         concat = pd.read_csv(os.path.join(prep_path, 'df_base_selected.csv'), index_col=0)
     if config.get('name').get('dataset_name') == 'feat_scaled':
         concat = pd.read_csv(os.path.join(prep_path, 'df_feat_scaled.csv'), index_col=0)
-    elif config.get('name').get('dataset_name') == 'feat_selected':
-        concat = pd.read_csv(os.path.join(prep_path, 'df_feat_selected.csv'), index_col=0)
+    elif config.get('name').get('dataset_name') == 'feat_baseline':
+        concat = pd.read_csv(os.path.join(prep_path, 'df_feature.csv'), index_col=0)
     elif config.get('name').get('dataset_name') == 'concat_feat':
         concat = pd.read_csv(os.path.join(prep_path, 'df_concat_feat.csv'), index_col=0)
     elif config.get('name').get('dataset_name') == 'concat':
@@ -357,26 +363,41 @@ def main():
 
     df_profile = DataPrep.get_data_profile(concat)
     df_profile.to_csv(os.path.join(prep_path, 'profile_after_null_filled.csv'))
-    print(f'Remove cols: {remove_cols}')
-    concat.drop(columns=remove_cols, inplace=True)
-    cols_to_select =['시군구', '번지', '본번', '부번', '아파트명', '전용면적', '계약년월', '계약일', '층', '건축년도',
-       '도로명', '등기신청일자', '중개사소재지', 'k-단지분류(아파트,주상복합등등)', '단지소개기존clob', 'k-복도유형',
-       'k-난방방식', 'k-전체동수', 'k-건설사(시공사)', 'k-시행사', 'k-전용면적별세대현황(60㎡이하)',
-       'k-전용면적별세대현황(60㎡~85㎡이하)', 'k-85㎡~135㎡이하', 'k-홈페이지', 'k-등록일자',
-       '고용보험관리번호', '건축면적', '주차대수', '동', 'gangnam_apt_shortest_distance',
-       'gangnam_apt_zone_type', '대장아파트_거리']+['is_test', 'target']
+    cols_var_remove = ['k-세대타입(분양형태)', 'k-관리방식', '기타/의무/임대/임의=1/2/3/4', '사용허가여부', '관리비 업로드']#,'좌표X', '좌표Y', '신축여부'],#['거래유형', 'k-135㎡초과',  '시', '대장_좌표X', '대장_좌표Y'] #'좌표X', '좌표Y'
 
-    existing_columns = [col for col in cols_to_select if col in concat.columns]
-    print(f'Existing columns: {len(existing_columns)}/{len(cols_to_select)}')
-    concat = concat[existing_columns]
+    cols_corr_remove = ['k-전체세대수', 'k-연면적', 'k-주거전용면적', 'k-관리비부과면적', 'k-전용면적별세대현황(60㎡~85㎡이하)']#['해제사유발생일', 'k-전화번호', 'k-팩스번호', 'k-세대타입(분양형태)', 'k-관리방식', 'k-전체세대수', 'k-사용검사일-사용승인일', 'k-연면적', 'k-주거전용면적', 'k-관리비부과면적', 'k-수정일자', '경비비관리형태', '세대전기계약방법', '청소비관리형태', '기타/의무/임대/임의=1/2/3/4', '단지승인일', '사용허가여부', '관리비 업로드', '단지신청일']#, '주소', '구']
+
+
+    remove_cols = cols_var_remove + cols_corr_remove
+    print(f'Remove cols:{len(remove_cols)} {remove_cols}')
+    print(f'Current concat columns: {len(concat.columns)}\n{concat.columns}')
+
+    remove_cols = [col for col in remove_cols if col in concat.columns]
+    #concat.drop(columns=remove_cols, inplace=True)
+    # cols_to_select =['시군구', '번지', '본번', '부번', '아파트명', '전용면적', '계약년월', '계약일', '층', '건축년도',
+    #    '도로명', '등기신청일자', '중개사소재지', 'k-단지분류(아파트,주상복합등등)', '단지소개기존clob', 'k-복도유형',
+    #    'k-난방방식', 'k-전체동수', 'k-건설사(시공사)', 'k-시행사', 'k-전용면적별세대현황(60㎡이하)',
+    #    'k-전용면적별세대현황(60㎡~85㎡이하)', 'k-85㎡~135㎡이하', 'k-홈페이지', 'k-등록일자',
+    #    '고용보험관리번호', '건축면적', '주차대수', '동', 'gangnam_apt_shortest_distance',
+    #    'gangnam_apt_zone_type', '대장아파트_거리']+['is_test', 'target']
+
+    # #cols_to_select = concat.columns
+    # existing_columns = [col for col in cols_to_select if col in concat.columns]
+    # print(f'Existing columns: {len(existing_columns)}/{len(cols_to_select)}')
+    # concat = concat[existing_columns]
     columns_with_null = concat.columns[concat.isnull().any()].tolist()
 
     print(f'Fill missing values for {len(columns_with_null)} columns: {columns_with_null}')
     
-    # for col in tqdm(columns_with_null):
-    #     concat[col] = null_fill(concat, col)
-    concat = feat_eng._prep_feat(concat)
-    concat = null_fill(concat)
+    if len(columns_with_null) >0:    
+        # for col in tqdm(columns_with_null):
+        #     concat[col] = null_fill(concat, col)
+        try:
+            concat = null_fill(concat)
+            concat = feat_eng._prep_feat(concat)
+        except:
+            print('error. try interpolation')
+
     #concat = DataPrep._fill_missing_values(concat,  target_cols=['target']
     ########################################################################################################################################
     dt_train, dt_test = Utils.unconcat_train_test(concat)
@@ -387,7 +408,6 @@ def main():
     X_train, X_test, label_encoders = feat_eng.encode_label(X_train, X_test, categorical_columns_v2)
     logger.info(f'>>>>Train shape: {dt_train.shape}, {dt_train.columns}\nTest shape: {dt_test.shape}, {dt_test.columns}')
     
-   
     ### 
     X_train.columns = [re.sub(r'[^\w]', '_', col) for col in X_train.columns]
     X_test.columns = [re.sub(r'[^\w]', '_', col) for col in X_test.columns]
@@ -402,15 +422,15 @@ def main():
     out_model_path = os.path.join(config.get('path').get('out'), f'saved_model_{model_name}_{dataset_name}_{split_type}.pkl')
     # X_train, y_train = feat_eng._prep_x_y_split_target(dt_train, flag_val=False)
     logger.info(f'out_model_path: {out_model_path}')
-    if not os.path.exists(out_model_path):
-        logger.info('>>>>Model Training 시작...')
-        model, _ = model.model_train(X_train, y_train, model_name, split_type)#model.model_train(X_train, X_val, y_train, y_val, model_name, split_type)
-        with open(out_model_path, 'wb') as f:
-            pickle.dump(model, f)
-    else:
-        logger.info('>>>>Model Training 존재. Loading...')
-        with open(out_model_path, 'rb') as f:
-            model = pickle.load(f)
+    # if not os.path.exists(out_model_path):
+    logger.info('>>>>Model Training 시작...')
+    model, _, rmse = model.model_train(X_train, y_train, model_name, split_type)#model.model_train(X_train, X_val, y_train, y_val, model_name, split_type)
+    with open(out_model_path, 'wb') as f:
+        pickle.dump(model, f)
+    # else:
+    #     logger.info('>>>>Model Training 존재. Loading...')
+    #     with open(out_model_path, 'rb') as f:
+    #         model = pickle.load(f)
     
     ########################################################################################################################################
     # Infere
@@ -426,6 +446,9 @@ def main():
     logger.info(f'Inference 결과 저장 완료 : {out_pred_path}')
     logger.info(f'{preds_df.head(3)}')
     seve_config(config)
+    config['rmse'] = rmse
+
+    log_experiment(config)
     # X_test = dt_test
     # X_test = dt_test.drop(['target'], axis=1)
 

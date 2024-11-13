@@ -307,68 +307,7 @@ def distance_analysis_old(building_df, target_feature, building_coor, target_coo
     
     return building_df, created_columns
 
-def _fill_missing_values(
-                        df: pd.DataFrame, 
-                        target_cols: List[str],
-                        group_cols: List[str] = ['도로명주소', '시군구', '도로명', '아파트명'],
-                        is_categorical: bool = True) -> pd.DataFrame:
-    """결측치 채우기 함수"""
-    df_filled = df.copy()
-    
-    # 결측치 현황 출력
-    null_before = df_filled[target_cols].isnull().sum()
-    print(f"처리 전 결측치:\n{null_before}\n")
-    
-    # 상세 단위부터 큰 단위까지 순차적으로 결측치 채우기
-    for i in range(len(group_cols), 0, -1):
-        current_groups = group_cols[:i]
-        
-        # 그룹화 컬럼이 데이터에 있는지 확인
-        valid_groups = [col for col in current_groups if col in df_filled.columns]
-        
-        if not valid_groups:
-            continue
-            
-        for col in target_cols:
-            # 결측치가 있는 경우에만 처리
-            if df_filled[col].isnull().any():
-                if is_categorical:
-                    # 범주형: 최빈값으로 채우기
-                    fill_values = df_filled.groupby(valid_groups)[col].transform(
-                        lambda x: x.mode().iloc[0] if not x.mode().empty else x
-                    )
-                else:
-                    # 수치형: 평균값으로 채우기
-                    fill_values = df_filled.groupby(valid_groups)[col].transform('mean')
-                
-                # NaN이 아닌 값만 업데이트
-                mask = df_filled[col].isnull() & fill_values.notna()
-                df_filled.loc[mask, col] = fill_values[mask]
-                
-                filled_count = null_before[col] - df_filled[col].isnull().sum()
-                if filled_count > 0:
-                    print(f"{col}: {valid_groups}기준으로 {filled_count}개 채움")
-    
-    # 남은 결측치 처리
-    for col in target_cols:
-        if df_filled[col].isnull().any():
-            if is_categorical:
-                fill_value = df_filled[col].mode().iloc[0] if not df_filled[col].mode().empty else 'Unknown'
-                method = "최빈값"
-            else:
-                fill_value = df_filled[col].mean()
-                method = "평균값"
-                
-            missing_count = df_filled[col].isnull().sum()
-            df_filled[col] = df_filled[col].fillna(fill_value)
-            print(f"{col}: 전체 {method}({fill_value})으로 {missing_count}개 채움")
-    
-    # 결과 확인
-    null_after = df_filled[target_cols].isnull().sum()
-    print(f"\n처리 후 결측치:\n{null_after}")
-    print(f"\n채워진 결측치 수:\n{null_before - null_after}")
-    
-    return df_filled
+
 
 def main_prep_null_coordinate(df_raw, prep_path):
    

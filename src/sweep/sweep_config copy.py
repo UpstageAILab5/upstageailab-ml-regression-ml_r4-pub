@@ -2,176 +2,201 @@
 method = 'bayes'
 metric = 'rmse'
 
+data_sweep_config = {
+    'method': method,
+    'metric': {'name': metric, 'goal': 'minimize'},
+    'parameters': {
+        "dataset_name": {"values": ["baseline", "encoded", "feat_null-preped_freq-encoded", "null-preped_freq-encoded"]},
+        "features": {"values": ["baseline", "removed", "minimum"]},
+        "split_type": {"values": ["kfold", "holdout"]}
+    }
+}
 
-sweep_configs = {
+model_sweep_configs = {
+    "xgboost": {
         'method': method,
         'metric': {'name': metric, 'goal': 'minimize'},
         'parameters': {
-            "model": {"values": ["xgboost", "random_forest", "lightgbm", "catboost"]},
-            "dataset_name": {"values": ["baseline", "encoded", "feat_null-preped_freq-encoded", "null-preped_freq-encoded"]},
-            "features": {"values": ["baseline", "removed", "minimum"]},
-            "split_type": {"values": ["kfold", "holdout"]},
-            'xgboost_n_estimators': {
+            'n_estimators': {
                 'distribution': 'int_uniform',
                 'min': 100,
                 'max': 1000
             },
-            'xgboost_eta': {
+            'eta': {
                 'distribution': 'log_uniform',
                 'min': 0.01,
                 'max': 0.3
             },
-            'xgboost_max_depth': {
+            'max_depth': {
                 'distribution': 'int_uniform',
                 'min': 3,
                 'max': 10
             },
-            'xgboost_subsample': {
+            'subsample': {
                 'distribution': 'uniform',
                 'min': 0.6,
                 'max': 1.0
             },
-            'xgboost_colsample_bytree': {
+            'colsample_bytree': {
                 'distribution': 'uniform',
                 'min': 0.4,
                 'max': 1.0
             },
-            'xgboost_gamma': {  # xgboost-specific
-                'distribution': 'uniform',
-                'min': 0.0,
-                'max': 5.0
+            'gamma': {  # xgboost-specific
+            'distribution': 'uniform',
+            'min': 0.0,
+            'max': 5.0
             },
-            'xgboost_reg_lambda': {
-                'distribution': 'uniform',
+            'reg_lambda': {
+            'distribution': 'uniform',
             'min': 0.0,
             'max': 10.0
             },
-            'xgboost_alpha': {
-                'distribution': 'uniform',
-                'min': 0.0,
-                'max': 10.0
-            },
+            'alpha': {
+            'distribution': 'uniform',
+            'min': 0.0,
+            'max': 10.0
+            }
+        }
+    },
 
-    'lightgbm_n_estimators': {
-        'distribution': 'int_uniform',
-        'min': 100,
-        'max': 1000
+    
+    "lightgbm": {
+        'method': method,
+        'metric': {'name': metric, 'goal': 'minimize'},
+        'parameters': {
+
+            'n_estimators': {
+                'distribution': 'int_uniform',
+                'min': 100,
+                'max': 1000
             },
-            'lightgbm_learning_rate': {
+            'learning_rate': {
                 'distribution': 'log_uniform',
                 'min': 0.01,
                 'max': 0.3
                 },
-            'lightgbm_colsample_bytree': {
+            'colsample_bytree': {
                 'distribution': 'uniform',
                 'min': 0.4,
                 'max': 1.0
             },
-            'lightgbm_subsample': {
+            'subsample': {
                 'distribution': 'uniform',
                 'min': 0.6,
                 'max': 1.0
             },
-            'lightgbm_num_leaves': {'values': [31, 50, 70, 100]},
-            'lightgbm_max_depth': {
+            'num_leaves': {'values': [31, 50, 70, 100]},
+            'max_depth': {
                 'distribution': 'int_uniform',
                 'min': 3,
                 'max': 10
             },
-            'lightgbm_min_data_in_leaf': {  # lightgbm-specific
+            'min_data_in_leaf': {  # lightgbm-specific
                 'distribution': 'int_uniform',
                 'min': 10,
                 'max': 100
             },
-            'lightgbm_feature_fraction': {
+            'feature_fraction': {
                 'distribution': 'uniform',
                 'min': 0.4,
                 'max': 1.0
             },
-            'lightgbm_bagging_fraction': {
+            'bagging_fraction': {
                 'distribution': 'uniform',
                 'min': 0.4,
                 'max': 1.0
             },
-            'lightgbm_lambda_l1': {
+            'lambda_l1': {
                 'distribution': 'uniform',
                 'min': 0.0,
                 'max': 10.0
             },
-            'lightgbm_lambda_l2': {
+            'lambda_l2': {
                 'distribution': 'uniform',
                 'min': 0.0,
                 'max': 10.0
-            },
-    
+            }
+        }
+    },
+    "random_forest": {
+        'method': method,
+        'metric': {'name': metric, 'goal': 'minimize'},
+        'parameters': {
 
-
-            'random_forest_n_estimators': {
+            'n_estimators': {
             'distribution': 'int_uniform',
             'min': 50,
             'max': 300
         },
-        'random_forest_max_depth': {
+        'max_depth': {
             'distribution': 'int_uniform',
             'min': 5,
             'max': 15
         },
-        'random_forest_min_samples_split': {
+        'min_samples_split': {
             'distribution': 'int_uniform',
             'min': 2,
             'max': 10
         },
-        'random_forest_min_samples_leaf': {
+        'min_samples_leaf': {
             'distribution': 'int_uniform',
             'min': 1,
             'max': 5
         },
-        'random_forest_max_features': {
+        'max_features': {
             'values': ['sqrt', 'log2']
         },
-        'random_forest_bootstrap': {
+        'bootstrap': {
             'values': [True]
-        },
+        }
+    
+        }
+    },
+    "catboost": {
+        'method': method,
+        'metric': {'name': metric, 'goal': 'minimize'},
+        'parameters': {
 
-
-            'catboost_iterations': {
+            'iterations': {
             'distribution': 'int_uniform',
             'min': 100,
             'max': 1000
         },
-        'catboost_depth': {
+        'depth': {
             'distribution': 'int_uniform',
             'min': 4,
             'max': 10
         },
-        'catboost_learning_rate': {
+        'learning_rate': {
             'distribution': 'log_uniform',
             'min': 0.01,
             'max': 0.3
         },
-        'catboost_l2_leaf_reg': {
+        'l2_leaf_reg': {
             'distribution': 'uniform',
             'min': 1.0,
             'max': 10.0
         },
-        'catboost_bagging_temperature': {
+        'bagging_temperature': {
             'distribution': 'uniform',
             'min': 0.0,
             'max': 1.0
         },
-        'catboost_random_strength': {
+        'random_strength': {
             'distribution': 'uniform',
             'min': 0.0,
             'max': 10.0
         },
-        'catboost_border_count': {
+        'border_count': {
             'distribution': 'int_uniform',
             'min': 32,
             'max': 255
         },
-        'catboost_boosting_type': {
+        'boosting_type': {
             'values': ['Ordered', 'Plain']
         
         }
     }
+}
 }

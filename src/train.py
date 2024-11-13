@@ -117,8 +117,6 @@ class Model():
                 feature_fraction=config.get('feature_fraction'),    
                 max_depth=config.get('max_depth')
             )
-
-   
         # smote = SMOTE(random_state=42)
         # X_train, y_train = smote.fit_resample(X_train, y_train)
         # Recursive Feature Elimination 예시
@@ -134,27 +132,28 @@ class Model():
         # if isinstance(y_train, pd.Series):
         #     y_val = y_val.values
     
-        if type == 'k_fold':
+        if type == 'kfold':
             # Ensure X and y are vertically stacked properly
             # X = np.vstack((X_train, X_val))
             # y = np.hstack((y_train, y_val))  # Use hstack since y is a 1D array
             model, rmse_avg = self.cross_validate_and_evaluate(model, X, y)
+            self.logger.info(f'kfold: mean RMSE for val data set: {rmse_avg}')
+            rmse = rmse_avg
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
-            self.logger.info(f'mean RMSE for val data set: {rmse_avg}')
-
+            pred = model.predict(X_val)
         else:
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
             model.fit(X_train, y_train)#, early_stopping_rounds=50,verbose=100)
         
-        pred = model.predict(X_val)
-        rmse = np.sqrt(metrics.mean_squared_error(y_val, pred))
+            pred = model.predict(X_val)
+            rmse = np.sqrt(metrics.mean_squared_error(y_val, pred))
         self.logger.info(f'RMSE {type}: {rmse}')
             # 회귀 관련 metric을 통해 train/valid의 모델 적합 결과를 관찰합니다.
         # 학습된 모델을 저장합니다. Pickle 라이브러리를 이용하겠습니다.
         out_path = os.path.join(self.out_path,f'saved_model_{model_name}_{type}.pkl' )
         with open(out_path, 'wb') as f:
             pickle.dump(model, f)
-        self.logger.info(f'mean RMSE for val data set: {rmse}\nModel saved to {out_path}')
+        self.logger.info(f'Model saved to {out_path}')
         self.logger.info(f'Feature Importances for {model_name}')
         # 위 feature importance를 시각화해봅니다.
         importances = pd.Series(model.feature_importances_, index=list(X_train.columns))
@@ -165,9 +164,10 @@ class Model():
         sns.barplot(x=importances, y=importances.index)
         plt.show(block=False)
         plt.pause(self.time_delay)  # 5초 동안 그래프 표시
-        plt.close()
+        
         plt.savefig(os.path.join(self.out_path, title_feat +'.png'), dpi=300, bbox_inches='tight')
-        return model, pred
+        plt.close()
+        return model, pred, rmse
 
     # def k_fold_train(self, dt_train, k=5):
     #     y = dt_train['target']
