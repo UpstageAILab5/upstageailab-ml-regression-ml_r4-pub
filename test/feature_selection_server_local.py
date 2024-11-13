@@ -537,15 +537,16 @@ def main():
         cols_to_num = [col for col in cols_to_num if col in df_null_removed.columns]
         df_null_removed = DataPrep.convert_dtype(df_null_removed, cols_to_str, cols_to_num)
         continuous_columns, categorical_columns = Utils.categorical_numeric(df_null_removed)
-        df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
-        # group_cols = ['시군구', '도로명', '아파트명']
-        # df_columns = set(df_null_removed.columns)
+        
+        group_cols = ['시군구', '도로명', '아파트명']
+        df_columns = set(df_null_removed.columns)
 
-        # # 리스트에서 데이터프레임에 없는 컬럼 찾기
-        # missing_columns = [col for col in group_cols if col not in df_columns]
-        # if missing_columns:
-        #     print("Missing columns:", missing_columns)
-        # df_interpolated = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+        # 리스트에서 데이터프레임에 없는 컬럼 찾기
+        missing_columns = [col for col in group_cols if col not in df_columns]
+        if missing_columns:
+            print("Missing columns:", missing_columns)
+        df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+        df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
         df_interpolated.to_csv(path_null_prep)
 
     vif = FeatureSelect.calculate_vif(df_interpolated, continuous_columns, vif_threshold)
