@@ -23,7 +23,7 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from tqdm import tqdm
 import numpy as np
-
+import pickle
 from scipy import sparse
 
 from typing import List
@@ -115,11 +115,11 @@ class FeatureSelect:
         
         selector = SelectKBest(score_func=mutual_info_classif, k=k)
         X_filtered = selector.fit_transform(X_sampled, y_sampled)
-
-        X_train_sampled = pd.DataFrame(X_filtered, columns=original_column_names[selector.get_support()])
+        selected_features = original_column_names[selector.get_support()]
+        X_train_sampled = pd.DataFrame(X_filtered, columns=selected_features)
         #X_test_sampled = pd.DataFrame(X_filtered, columns=original_column_names[selector.get_support()])
-        print('#### Filtered columns by SelectKBest', original_column_names[selector.get_support()])
-        return X_train_sampled#, X_test_sampled
+        print('#### Filtered columns by SelectKBest', selected_features)
+        return X_train_sampled, selected_features#, X_test_sampled
     @staticmethod
     def compare_selected_features(selected_rfe, selected_sfs, list_features, original_column_names):
         set_rfe = set(selected_rfe)
@@ -540,8 +540,9 @@ def main():
             print("Missing columns:", missing_columns)
         df_interpolated = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
         df_interpolated.to_csv(path_null_prep)
-        vif = FeatureSelect.calculate_vif(df_interpolated, continuous_columns, vif_threshold)
-        cramers_v = FeatureSelect.cramers_v_all(df_interpolated, categorical_columns, cramer_v_threshold)
+
+    vif = FeatureSelect.calculate_vif(df_interpolated, continuous_columns, vif_threshold)
+    cramers_v = FeatureSelect.cramers_v_all(df_interpolated, categorical_columns, cramer_v_threshold)
         
     continuous_columns, categorical_columns = Utils.categorical_numeric(df_interpolated)
 ## Encode categorical variables
@@ -577,14 +578,14 @@ def main():
     original_column_names = X_train.columns#           
     cols_var, cols_corr = FeatureSelect.filter_method(X_train, X_test, continuous_columns, categorical_columns)
 
-    common_features, union_features, rest_features = FeatureSelect.compare_selected_features(cols_var, cols_corr, ['Variance Threshold', 'Correlation Threshold'], original_column_names)
+    filter_common_features, filter_union_features, filter_rest_features = FeatureSelect.compare_selected_features(cols_var, cols_corr, ['Variance Threshold', 'Correlation Threshold'], original_column_names)
 ##### Resampling for Feature Selection  
     n_resample = min(10000, len(X_train))
     X_sampled, y_sampled = resample(X_train, y_train, 
                                             n_samples=n_resample,
                                             random_state=2023)
     # #상위 K개 특성만 먼저 선택
-    X_sampled = FeatureSelect.select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40)
+    X_sampled, kbest_features = FeatureSelect.select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40)
 
     rf = RandomForestRegressor(random_state=2023)
     #rf = Ridge(alpha=1.0)
@@ -593,6 +594,10 @@ def main():
   
     dict_result = {'vif': vif, 
                    'cramers_v': cramers_v,
+                   'kbest_features': kbest_features,
+                   'filter_common_features': filter_common_features,
+                   'filter_union_features': filter_union_features,
+                   'filter_rest_features': filter_rest_features,
                    'common_features': common_features,
                    'union_features': union_features,
                    'rest_features': rest_features,
@@ -600,6 +605,9 @@ def main():
                    'selected_sfs': selected_sfs
                    }
     print(dict_result)
+    
+    with open(os.path.join(prep_path, 'dict_feature_selection_result.pkl'), 'wb') as f:
+        pickle.dump(dict_result, f)
 if __name__ == '__main__':
     main()
 
