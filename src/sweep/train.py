@@ -82,6 +82,8 @@ def train_model(config=None):
         split_type = config.split_type
         model_name = config.model
         # 모델 선택
+        print(f'\n#### Model: {model_name} ####\n')
+        print(f'- Data: {dataset_name}\n- Features: {features}\n- Split type:{split_type}\n')
         if model_name == "xgboost":
             model = xgb.XGBRegressor(
                 eta=config.xgboost_eta,
@@ -130,7 +132,6 @@ def train_model(config=None):
         data_path = os.path.join(base_path, 'data')
         prep_path = os.path.join(data_path, 'preprocessed')
 
-
         if dataset_name == 'baseline':
             df = pd.read_csv(os.path.join(prep_path, 'df_feature.csv')) 
         elif dataset_name == 'encoded':
@@ -145,7 +146,6 @@ def train_model(config=None):
         cols = ['시군구', '전용면적', '계약년월', '건축년도', '층', '도로명', '아파트명']
         cols_feat = ['신축여부', '구', '강남여부']
 
-        
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
             df = df.drop(columns=cols_to_remove)
@@ -164,12 +164,25 @@ def train_model(config=None):
         X = df_train.drop(columns=['target'])
 
         X = clean_column_names(X)
+        # 피처 이름 중복 확인 및 해결
+
+        duplicated_columns = X.columns[X.columns.duplicated()]
+
+        # 중복된 피처 이름 출력
+        if duplicated_columns.any():
+            print("중복된 피처 이름이 있습니다:", duplicated_columns.tolist())
+            X.columns = [f"feature_{i}" for i in range(X.shape[1])]
+        try:
+            print(X.shape)
+            print(y.shape)
+        except:
+            print('shape print error.')
         if split_type == 'kfold':
             # Ensure X and y are vertically stacked properly
             # X = np.vstack((X_train, X_val))
             # y = np.hstack((y_train, y_val))  # Use hstack since y is a 1D array
             
-            model, rmse_avg = cross_validate_and_evaluate(model, df, y, random_seed)
+            model, rmse_avg = cross_validate_and_evaluate(model, X, y, random_seed)
             print(f'kfold: mean RMSE for val data set: {rmse_avg}')
             rmse = rmse_avg
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=random_seed)

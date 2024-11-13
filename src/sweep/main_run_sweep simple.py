@@ -32,13 +32,15 @@ def load_sweep_id(filename="sweep_id.txt"):
 def run_sweep_for_model_and_dataset(project_name, count):
     # 각 모델에 대해 스위프 실행
     # for model_name, sweep_config in sweep_configs#.items():
+    
     try:    
         sweep_id = load_sweep_id(f"sweep_id.txt")
     except FileNotFoundError:
         print('err')
         sweep_id = None
-    
+    sweep_id = "g0kmrn6l"
     if not sweep_id:
+        print('No sweep id. generating...')
         # 스위프 ID가 없으면 새로 생성
         sweep_id = wandb.sweep(sweep_configs, project=project_name)
         save_sweep_id(sweep_id, f"sweep_id.txt")
