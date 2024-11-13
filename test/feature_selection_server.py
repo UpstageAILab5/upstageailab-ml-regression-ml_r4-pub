@@ -485,6 +485,7 @@ def main():
     data_path = os.path.join(base_path, 'data')
     prep_path = os.path.join(data_path, 'preprocessed')
     fig_path = os.path.join(base_path, 'output', 'plots')
+    os.makedirs(fig_path, exist_ok=True)
     #####
     path_raw = os.path.join(prep_path, 'df_raw.csv')
     
