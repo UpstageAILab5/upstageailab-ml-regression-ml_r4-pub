@@ -62,9 +62,9 @@ def cross_validate_and_evaluate(model, X, y, random_seed):
             print(f'Fold {fold} RMSE: {rmse:,.2f}')
             
             # 메모리 정리
-            del X_train, X_val, y_train, y_val, val_pred
-            import gc
-            gc.collect()
+            # del X_train, X_val, y_train, y_val, val_pred
+            # import gc
+            # gc.collect()
         
         mean_rmse = np.mean(rmse_scores)
         std_rmse = np.std(rmse_scores)
@@ -145,6 +145,7 @@ def train_model(config=None):
         
         cols = ['시군구', '전용면적', '계약년월', '건축년도', '층', '도로명', '아파트명']
         cols_feat = ['신축여부', '구', '강남여부']
+        cols_feat2= ['주차대수','대장아파트_거리','subway_shortest_distance','bus_shortest_distance', 'cluster_dist_transport' , 'subway_direct_influence_count', 'subway_indirect_influence_count']
 
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
@@ -157,6 +158,11 @@ def train_model(config=None):
             cols_total = cols_id+cols+cols_feat
             cols_total = [col for col in cols_total if col in df.columns]
             df = df[cols_total]
+        elif features == 'medium':
+            cols_total = cols_id+cols+cols_feat+cols_feat2
+            cols_total = [col for col in cols_total if col in df.columns]
+            df = df[cols_total]
+
 
         #continuous_columns, categorical_columns = categoric_numeric(df_encoded)
         df_train, _= unconcat_train_test(df)

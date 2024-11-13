@@ -1,6 +1,6 @@
 import wandb
 from train import train_model
-from sweep_config import sweep_configs, sweep_config_xgb
+from sweep_config import sweep_configs, sweep_config_xgb, sweep_config_lightgbm
 # from sklearn.datasets import load_boston, load_diabetes  # 예제 데이터셋
 from sklearn.model_selection import train_test_split
 import pickle
@@ -34,18 +34,18 @@ def run_sweep_for_model_and_dataset(project_name, count):
     # for model_name, sweep_config in sweep_configs#.items():
     
     try:    
-        sweep_id = load_sweep_id(f"sweep_id_xgb.txt")
+        sweep_id = load_sweep_id(f"sweep_id_lightgbm.txt")
     except FileNotFoundError:
         print('err')
         sweep_id = None
-    sweep_id = "qz7kkbp8"
+    sweep_id = "nimzfyr3"
     if not sweep_id:
         print('No sweep id. generating...')
         # 스위프 ID가 없으면 새로 생성
         
         #sweep_id = wandb.sweep(sweep_configs, project=project_name)
-        sweep_id = wandb.sweep(sweep_config_xgb, project=project_name)
-        save_sweep_id(sweep_id, f"sweep_id_xgb.txt")
+        sweep_id = wandb.sweep(sweep_config_lightgbm, project=project_name)
+        save_sweep_id(sweep_id, f"sweep_id_lightgbm.txt")
     print(f'\n#### sweep_id: {sweep_id}\n')
     # wandb 스위프 생성
     # 모델-데이터셋 조합에 대한 스위프 실행
@@ -59,9 +59,9 @@ def main_sweep():
     
     # print(f'X_train.columns: {X_train.columns}')
     # print(f'X_test.columns: {X_test.columns}')
-    count = 50
+    count = 300
     # 데이터셋과 모델 조합에 대해 스위프 실행
-    project_name = 'House_price_prediction_XGB'#'House_price_prediction'
+    project_name = 'House_price_prediction_lightGBM'#'House_price_prediction'
     run_sweep_for_model_and_dataset(project_name, count)
     # dataset_name = 'k_fold_cross_val'
     # run_sweep_for_model_and_dataset(dataset_name, X_train, y_train, X_test, y_test, count)
