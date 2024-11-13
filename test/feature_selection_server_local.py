@@ -396,7 +396,7 @@ class DataPrep:
     def frequency_encode(train_df, test_df, min_freq_dict):
         """빈도 기반 인코딩과 기존 컬럼 값 교체"""
         print('\n#### Frequency Encoding')
-        start_time = time.time()
+        # start_time = time.time()
  
 
         for col in train_df.columns:
@@ -428,7 +428,7 @@ class DataPrep:
             train_df.loc[:, col] = train_categories.map(cat_to_idx)
             test_df.loc[:, col] = test_categories.map(cat_to_idx)
         
-        print(f'Frequency Encoding Time: {time.time() - start_time}')
+        # print(f'Frequency Encoding Time: {time.time() - start_time}')
         return train_df, test_df
 class Utils:
     @staticmethod
