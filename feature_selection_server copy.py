@@ -81,13 +81,29 @@ def feature_selection_sfs(clf, X_train, y_train, path, k_features='best'):
     plt.close()
     return sfs.k_feature_idx_
 
-def variance_threshold(df): 
-    selector = VarianceThreshold(threshold=0.1)
+def variance_threshold(df, threshold = 0.1): 
+    selector = VarianceThreshold(threshold=threshold)
     reduced_df = selector.fit_transform(df)
 
     print("Original DataFrame:\n", df.shape)
     print("Reduced DataFrame:\n", pd.DataFrame(reduced_df).shape)
-    return pd.DataFrame(reduced_df)
+    selected_columns = df.columns[selector.get_support()]
+    selected_columns    
+    print(f'\n########### Selected Columns\n{selected_columns}')
+    return pd.DataFrame(reduced_df), selected_columns
+import numpy as np
+def corr_threshold(df, threshold = 0.8):
+    correlation_matrix = df.corr()
+    # 상관계수 행렬을 절대값 기준으로 상관계수 기준 설정
+    upper_triangle = correlation_matrix.where(np.triu(np.ones(correlation_matrix.shape), k=1).astype(bool))
+    # 상관계수가 threshold 이상인 열 이름 선택
+    to_drop = [column for column in upper_triangle.columns if any(upper_triangle[column].abs() > threshold)]
+    # 선택된 변수 제거
+    print(f'To drop: {len(to_drop)}\n{to_drop}')
+    df_reduced = df.drop(columns=to_drop)
+    print(df_reduced.columns)
+    return df_reduced, df_reduced.columns
+
 def feature_selection_rfe(clf, X_train, y_train, path):
     # RFE 모델 생성
     #feature_names = iris.feature_names
@@ -293,16 +309,25 @@ def encode_label(dt_train, dt_test, categorical_columns_v2):
         assert dt_train.shape[1] == dt_test.shape[1]          # train/test dataset의 shape이 같은지 확인해주겠습니다.
     return dt_train, dt_test, label_encoders
 def main():
+    cols_to_select =['시군구', '번지', '본번', '부번', '아파트명', '전용면적', '계약년월', '계약일', '층', '건축년도',
+       '도로명', '등기신청일자', '중개사소재지', 'k-단지분류(아파트,주상복합등등)', '단지소개기존clob', 'k-복도유형',
+       'k-난방방식', 'k-전체동수', 'k-건설사(시공사)', 'k-시행사', 'k-전용면적별세대현황(60㎡이하)',
+       'k-전용면적별세대현황(60㎡~85㎡이하)', 'k-85㎡~135㎡이하', 'k-홈페이지', 'k-등록일자',
+       '고용보험관리번호', '건축면적', '주차대수', '동', 'gangnam_apt_shortest_distance',
+       'gangnam_apt_zone_type', '대장아파트_거리']+['is_test', 'target']
+    
     base_path = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.join(base_path, 'data')
     prep_path = os.path.join(data_path, 'preprocessed')
     fig_path = os.path.join(base_path, 'output', 'figures')
     #df = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'))
     df = pd.read_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index_col=0)
+    cols = [col for col in cols_to_select if col in df.columns]
+    df = df[cols]
     Utils.chk_train_test_data(df)
 ## Encode categorical variables
     cols_exclude = ['target', 'is_test']
-    
+    print(f'Selected columns: {len(df.columns)}')
     df_train, df_test = Utils.unconcat_train_test(df)
     y_train = df_train['target']
     X_train = df_train.drop(columns=['target'])
@@ -313,23 +338,32 @@ def main():
     #df_transformed = auto_label_encode_parallel(df, cols_exclude, 'onehot')#auto_label_encode(df, cols_exclude, 'onehot')
     print("Original DataFrame:\n", df.shape)
     #print("\nTransformed DataFrame:\n", df_transformed.shape)
-    reduced_df = variance_threshold(X_train)
-    reduced_df.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_reduced.csv'))
+    _, cols_var = variance_threshold(X_train)
 
-    X_train['target'] = y_train
+    reduced_train = X_train[cols_var]
+    reduced_test = X_test[cols_var]
+    print('#### After Var reduced ', reduced_train.shape, reduced_train.columns)
 
-    concat_encoded = Utils.concat_train_test(X_train, X_test)
+    #.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_reduced_var.csv'))
+    _, cols_corr = corr_threshold(reduced_train)
 
-    concat_encoded.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_encoded.csv'))
+    reduced_train_corr = reduced_train[cols_corr]
+    reduced_test_corr = reduced_test[cols_corr]
 
-    # y_train = X_train['target']
-    # X_train = X_train.drop(columns=['target'])
+    print(cols_corr, reduced_train_corr.shape)
+
+    reduced_train_corr['target'] = y_train
+
+    concat_encoded = Utils.concat_train_test(reduced_train_corr, reduced_test_corr)
+    concat_encoded.to_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill_encoded_feature_selection_var_corr.csv'))
+
+    y_train = reduced_train_corr['target']
+    X_train = reduced_train_corr.drop(columns=['target'])
     # print(X_train.columns)
 ## Select Features
     rf = RandomForestRegressor(random_state=42)
-    #feature_selection_sfs(rf, X_train, y_train, fig_path)
     feature_selection_rfe(rf, X_train, y_train, fig_path)
-    
+    feature_selection_sfs(rf, X_train, y_train, fig_path)
     
 
 if __name__ == '__main__':
