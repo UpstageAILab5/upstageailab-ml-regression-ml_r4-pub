@@ -84,8 +84,6 @@ class FeatureSelect:
         if np.isinf(X.values).any():
             print("데이터에 무한대 값이 있습니다. 무한대 값을 처리하세요.")
         
-        # 결측값 및 무한대 값 처리
-        X = X.replace([np.inf, -np.inf], np.nan).dropna()
         X = X.assign(intercept=1)  # 상수항 추가
         vif_df = pd.DataFrame()
         vif_df['Feature'] = X.columns
@@ -494,7 +492,6 @@ def main():
     data_path = os.path.join(base_path, 'data')
     prep_path = os.path.join(data_path, 'preprocessed')
     fig_path = os.path.join(base_path, 'output', 'plots')
-    os.makedirs(fig_path, exist_ok=True)
     #####
     path_raw = os.path.join(prep_path, 'df_raw.csv')
     
@@ -577,6 +574,7 @@ def main():
         X_train['target'] = y_train
         concat = Utils.concat_train_test(X_train, X_test)
         concat.to_csv(path_encoded)
+        
 ## Select Features  
     print(f'##### Original dataset shape: {concat.shape}')                                                        
 ##### Filter Method
@@ -595,7 +593,7 @@ def main():
                                             n_samples=n_resample,
                                             random_state=2023)
     # #상위 K개 특성만 먼저 선택
-    #X_sampled, kbest_features = FeatureSelect.select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40)
+    X_sampled, kbest_features = FeatureSelect.select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40)
 
     rf = RandomForestRegressor(random_state=2023)
     #rf = Ridge(alpha=1.0)
@@ -604,7 +602,7 @@ def main():
   
     dict_result = {'vif': vif, 
                    'cramers_v': cramers_v,
-                   #'kbest_features': kbest_features,
+                   'kbest_features': kbest_features,
                    'filter_common_features': filter_common_features,
                    'filter_union_features': filter_union_features,
                    'filter_rest_features': filter_rest_features,
