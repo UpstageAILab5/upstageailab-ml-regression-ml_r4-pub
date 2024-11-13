@@ -49,8 +49,6 @@ def run_sweep_for_model_and_dataset(project_name, count):
     # 모델-데이터셋 조합에 대한 스위프 실행
     wandb.agent(sweep_id, function=lambda: train_model(), project = project_name, count= count)  # 각 조합마다 count 회의 스위프 수행
 
-
-
 def main_sweep():
 # for dataset_name, dataset in datasets.items():
 #     # X, y = dataset.data, dataset.target

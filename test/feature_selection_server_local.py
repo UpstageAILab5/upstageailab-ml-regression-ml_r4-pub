@@ -109,8 +109,8 @@ class FeatureSelect:
         print(f'High Cramer\'s V Columns: {high_cramer_v_columns}')
         return high_cramer_v_columns
     @staticmethod
-    def select_features_by_kbest(X_sampled, y_sampled, original_column_names):
-        k = min(40, X_sampled.shape[1])  # 특성 수의 절반 또는 20개
+    def select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40):
+        k = min(k, X_sampled.shape[1])  # 특성 수의 절반 또는 20개
         print(f'k: {k}')
         
         selector = SelectKBest(score_func=mutual_info_classif, k=k)
@@ -481,7 +481,7 @@ class Utils:
 
 def main():
     threshold_null = 0.9
-    base_path = os.path.dirname(os.path.abspath(__file__))
+    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_path, 'data')
     prep_path = os.path.join(data_path, 'preprocessed')
     fig_path = os.path.join(base_path, 'output', 'plots')
@@ -584,7 +584,7 @@ def main():
                                             n_samples=n_resample,
                                             random_state=2023)
     # #상위 K개 특성만 먼저 선택
-    # X_sampled = select_features_by_kbest(X_sampled, y_sampled, original_column_names)
+    X_sampled = FeatureSelect.select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40)
 
     rf = RandomForestRegressor(random_state=2023)
     #rf = Ridge(alpha=1.0)

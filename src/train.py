@@ -123,14 +123,11 @@ class Model():
         # rfe = RFE(estimator=model, n_features_to_select=10)
         # X_rfe = rfe.fit_transform(X_train, y)
 
-        # if isinstance(X_train, pd.DataFrame):
-        #     X_train = X_train.values
-        # if isinstance(y_train, pd.Series):
-        #     y_train = y_train.values
-        # if isinstance(X_val, pd.DataFrame):
-        #     X_val = X_val.values
-        # if isinstance(y_train, pd.Series):
-        #     y_val = y_val.values
+        if isinstance(X, pd.DataFrame):
+            X = X.values
+        if isinstance(y, pd.Series):
+            y = y.values
+
     
         if type == 'kfold':
             # Ensure X and y are vertically stacked properly
