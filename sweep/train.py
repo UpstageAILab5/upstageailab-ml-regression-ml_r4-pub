@@ -93,6 +93,7 @@ def train_model(config=None):
                 gamma=config.xgboost_gamma,
                 reg_lambda=config.xgboost_reg_lambda,  
                 reg_alpha=config.xgboost_alpha,
+                early_stopping_rounds=50
             )
 
         elif model_name == "lightgbm":
@@ -104,7 +105,8 @@ def train_model(config=None):
                 feature_fraction=config.lightgbm_feature_fraction,
                 bagging_fraction=config.lightgbm_bagging_fraction,
                 lambda_l1=config.lightgbm_lambda_l1,
-                lambda_l2=config.lightgbm_lambda_l2
+                lambda_l2=config.lightgbm_lambda_l2,
+                early_stopping_rounds=50
             )
         elif model_name == "random_forest":
             model = RandomForestRegressor(
@@ -112,7 +114,8 @@ def train_model(config=None):
                 max_depth=config.random_forest_max_depth,
                 min_samples_split=config.random_forest_min_samples_split,
                 min_samples_leaf=config.random_forest_min_samples_leaf,
-                max_features=config.random_forest_max_features
+                max_features=config.random_forest_max_features, 
+                early_stopping_rounds=50
             )
         elif model_name == "catboost":
             model = CatBoostRegressor(
@@ -121,7 +124,8 @@ def train_model(config=None):
                 learning_rate=config.catboost_learning_rate,
                 l2_leaf_reg=config.catboost_l2_leaf_reg,
                 bagging_temperature=config.catboost_bagging_temperature,
-                verbose=False
+                verbose=False, 
+                early_stopping_rounds=50
             )
         else:
             raise ValueError("Unsupported model type")
@@ -144,22 +148,27 @@ def train_model(config=None):
         cols_to_remove = ['등기신청일자', '거래유형', '중개사소재지'] 
         
         cols = ['시군구', '전용면적', '계약년월', '건축년도', '층', '도로명', '아파트명']
+        
         cols_feat = ['신축여부', '구', '강남여부']
+        cols_feat_common = ['k-난방방식', '전용면적', '좌표Y','좌표X','bus_direct_influence_count', 'subway_zone_type', '건축년도', '계약년월','k-수정일자', 'k-연면적']
         cols_feat2= ['주차대수','대장아파트_거리','subway_shortest_distance','bus_shortest_distance', 'cluster_dist_transport' , 'subway_direct_influence_count', 'subway_indirect_influence_count']
 
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
+            print(f'Baseline feature: {len(cols_to_remove)}\n{cols_to_remove}')
             df = df.drop(columns=cols_to_remove)
         elif features == 'removed':
             cols_to_remove+=['홈페이지','k-전화번호', 'k-팩스번호', '고용보험관리번호']
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
+            print(f'Remove_add_feature: {len(cols_to_remove)}\n{cols_to_remove}')
             df = df.drop(columns=cols_to_remove)
         elif features == 'minimum':
-            cols_total = cols_id+cols+cols_feat
+            cols_total = cols_id + cols + cols_feat +cols_feat_common
+            print(f'Minimum_feature: {len(cols_to_remove)}\n{cols_to_remove}')
             cols_total = [col for col in cols_total if col in df.columns]
             df = df[cols_total]
         elif features == 'medium':
-            cols_total = cols_id+cols+cols_feat+cols_feat2
+            cols_total = cols_id + cols + cols_feat + cols_feat2
             cols_total = [col for col in cols_total if col in df.columns]
             df = df[cols_total]
 

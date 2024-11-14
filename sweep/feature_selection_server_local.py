@@ -6,14 +6,14 @@ from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 from sklearn.feature_selection import RFECV
 from sklearn.feature_selection import VarianceThreshold
 import os
-
+import json
 from sklearn.linear_model import Ridge
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import scipy.stats as stats
 import pandas as pd
-
+import pprint
 from scipy import sparse
-
+from scipy.stats import chi2_contingency
 from time import time
 import psutil
 import os
@@ -24,9 +24,10 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from tqdm import tqdm
 import numpy as np
 import pickle
-from scipy import sparse
-
+import xgboost as xgb
 from typing import List
+
+from sweep_config import sweep_config_xgb
 # df.loc[some_condition, 'column'] = new_value
 
 class FeatureSelect:
@@ -94,33 +95,117 @@ class FeatureSelect:
         return high_vif_columns
 
     # 2. Cramer's V 계산 (categorical columns)
+    # @staticmethod
+    # def cramers_v(confusion_matrix):
+    #     chi2 = stats.chi2_contingency(confusion_matrix)[0]
+    #     n = confusion_matrix.sum()
+    #     r, k = confusion_matrix.shape
+    #     return np.sqrt(chi2 / (n * min(k-1, r-1)))
+    # @staticmethod
+    # def cramers_v_all(df, categorical_columns, cramer_v_threshold):
+    #     high_cramer_v_columns = []
+    #     for i in range(len(categorical_columns)):
+    #         for j in range(i + 1, len(categorical_columns)):
+    #             col1 = categorical_columns[i]
+    #             col2 = categorical_columns[j]
+    #             contingency_table = pd.crosstab(df[col1], df[col2])
+    #             cramer_v_value = FeatureSelect.cramers_v(contingency_table.values)
+    #             print(f"Cramer's V between {col1} and {col2}: {cramer_v_value:.4f}")
+    #             if cramer_v_value > cramer_v_threshold:
+    #                 high_cramer_v_columns.append((col1, col2))
+    #                 print(f"High Cramer's V between {col1} and {col2}: {cramer_v_value:.4f}")
+    #     print(f'High Cramer\'s V Columns: {high_cramer_v_columns}')
+    #     return high_cramer_v_columns
     @staticmethod
-    def cramers_v(confusion_matrix):
-        chi2 = stats.chi2_contingency(confusion_matrix)[0]
-        n = confusion_matrix.sum()
-        r, k = confusion_matrix.shape
-        return np.sqrt(chi2 / (n * min(k-1, r-1)))
-    @staticmethod
-    def cramers_v_all(df, categorical_columns, cramer_v_threshold):
-        high_cramer_v_columns = []
-        for i in range(len(categorical_columns)):
-            for j in range(i + 1, len(categorical_columns)):
+    def cramers_v_all(df, categorical_columns, threshold=0.7):
+        """
+        데이터프레임의 범주형 변수들 간의 Cramer's V 계산하고 
+        threshold 이상의 연관성을 가진 컬럼 쌍 반환
+        
+        Parameters:
+        -----------
+        df : pandas DataFrame
+            분석할 데이터프레임
+        threshold : float, default=0.7
+            Cramer's V 임계값 (이 값 이상의 연관성을 가진 쌍 추출)
+        
+        Returns:
+        --------
+        highly_correlated : list of tuples
+            높은 연관성을 가진 컬럼 쌍의 리스트
+        columns_to_drop : list
+            제거 추천되는 컬럼 리스트
+        """
+        def cramers_v(x, y):
+            confusion_matrix = pd.crosstab(x, y)
+            chi2 = chi2_contingency(confusion_matrix)[0]
+            n = confusion_matrix.sum().sum()
+            min_dim = min(confusion_matrix.shape) - 1
+            return np.sqrt(chi2 / (n * min_dim))
+
+        # 범주형 컬럼만 선택 (object 또는 category 타입)
+        #categorical_columns = df.select_dtypes(include=['object', 'category']).columns
+        n_cols = len(categorical_columns)
+        
+        # 결과를 저장할 리스트
+        highly_correlated = []
+        correlation_scores = {}
+        
+        # 모든 가능한 컬럼 쌍에 대해 Cramer's V 계산
+        for i in range(n_cols):
+            for j in range(i + 1, n_cols):
                 col1 = categorical_columns[i]
                 col2 = categorical_columns[j]
-                contingency_table = pd.crosstab(df[col1], df[col2])
-                cramer_v_value = FeatureSelect.cramers_v(contingency_table.values)
-                print(f"Cramer's V between {col1} and {col2}: {cramer_v_value:.4f}")
-                if cramer_v_value > cramer_v_threshold:
-                    high_cramer_v_columns.append((col1, col2))
-                    print(f"High Cramer's V between {col1} and {col2}: {cramer_v_value:.4f}")
-        print(f'High Cramer\'s V Columns: {high_cramer_v_columns}')
-        return high_cramer_v_columns
+                
+                # Cramer's V 계산
+                cramer_value = cramers_v(df[col1], df[col2])
+                
+                # 임계값 이상인 경우 저장
+                if cramer_value >= threshold:
+                    highly_correlated.append((col1, col2, cramer_value))
+                    # 각 컬럼의 상관관계 점수 누적
+                    correlation_scores[col1] = correlation_scores.get(col1, 0) + cramer_value
+                    correlation_scores[col2] = correlation_scores.get(col2, 0) + cramer_value
+        
+        # 제거할 컬럼 선택 (각 쌍에서 더 높은 상관관계 점수를 가진 컬럼)
+        columns_to_drop = set()
+        for col1, col2, _ in highly_correlated:
+            if correlation_scores[col1] > correlation_scores[col2]:
+                columns_to_drop.add(col1)
+            else:
+                columns_to_drop.add(col2)
+        
+        # 결과 출력
+        print(f"\n=== Cramer's V Analysis Results ===")
+        print(f"분석된 범주형 변수 개수: {n_cols}")
+        print(f"임계값: {threshold}")
+        print("\n높은 연관성을 가진 변수 쌍:")
+        for col1, col2, score in sorted(highly_correlated, key=lambda x: x[2], reverse=True):
+            print(f"{col1} - {col2}: {score:.3f}")
+        
+        print("\n제거 추천되는 변수:")
+        for col in sorted(columns_to_drop):
+            print(f"- {col} (누적 상관계수: {correlation_scores[col]:.3f})")
+        
+        return highly_correlated, list(columns_to_drop)
+
+    # 사용 예시
+    """
+    # 데이터프레임에서 높은 연관성을 가진 컬럼 찾기
+    highly_correlated, drops = calculate_cramers_v_pairs(
+        df,
+        threshold=0.7  # Cramer's V 임계값 설정
+    )
+
+    # 제거 추천되는 컬럼 제거
+    df_cleaned = df.drop(columns=drops)
+    """
     @staticmethod
-    def select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40):
+    def select_features_by_kbest(X_sampled, y_sampled, original_column_names, score_func, k=20):
         k = min(k, X_sampled.shape[1])  # 특성 수의 절반 또는 20개
         print(f'k: {k}')
         
-        selector = SelectKBest(score_func=mutual_info_classif, k=k)
+        selector = SelectKBest(score_func=score_func, k=k)
         X_filtered = selector.fit_transform(X_sampled, y_sampled)
         selected_features = original_column_names[selector.get_support()]
         X_train_sampled = pd.DataFrame(X_filtered, columns=selected_features)
@@ -143,7 +228,7 @@ class FeatureSelect:
         rest_features = list(set(original_column_names) - set(union_features))
         print(f'Rest features: \n{rest_features}\n')
 
-        return common_features, union_features, rest_features
+        return list(common_features), list(union_features), list(rest_features)
     @staticmethod
     def wrapper_method(X_train, y_train, clf, fig_path):
         print(f'Starting Wrapper Feature Selection...\n')
@@ -156,7 +241,7 @@ class FeatureSelect:
         return selected_features_rfe, selected_features_sfs
     @staticmethod
     def _optimized_rfe(clf, X_train, y_train, fig_path):
-        # 더 큰 step 사용
+    # 더 큰 step 사용
         step = max(1, X_train.shape[1] // 10)  # 특성 수의 10%씩 제거
         
         rfecv = RFECV(
@@ -168,21 +253,61 @@ class FeatureSelect:
         )
         
         rfecv.fit(X_train, y_train)
-        # cv_results_에서 평균 테스트 점수 추출
-        mean_test_scores = rfecv.cv_results_['mean_test_score']     
-        plt.figure(figsize=(8, 4))
-        plt.xlabel('Number of Features Selected')
-        plt.ylabel('Cross Validation Score (Accuracy)')
+        mean_test_scores = rfecv.cv_results_['mean_test_score']
         
-        plt.plot(range(1, len(mean_test_scores) + 1), mean_test_scores)
-        plt.title('RFECV Performance')
-    
+        # 그래프 스타일 설정
+        plt.style.use('seaborn')
+        plt.figure(figsize=(12, 6))
+        
+        # 메인 플롯
+        plt.plot(
+            range(1, len(mean_test_scores) + 1), 
+            mean_test_scores,
+            marker='o',
+            markersize=6,
+            linewidth=2,
+            color='#2E86C1',
+            label='Cross Validation Score'
+        )
+        
+        # 최적 포인트 강조
+        optimal_num_features = np.argmax(mean_test_scores) + 1
+        plt.plot(
+            optimal_num_features, 
+            np.max(mean_test_scores),
+            'r*',
+            markersize=15,
+            label=f'Optimal Features: {optimal_num_features}'
+        )
+        
+        # 그리드 추가
+        plt.grid(True, linestyle='--', alpha=0.7)
+        
+        # 레이블과 제목
+        plt.xlabel('Number of Features Selected', fontsize=12, fontweight='bold')
+        plt.ylabel('Cross Validation Score (MAE)', fontsize=12, fontweight='bold')
+        plt.title('Recursive Feature Elimination Cross Validation (RFECV)\nPerformance Analysis', 
+                fontsize=14, fontweight='bold', pad=20)
+        
+        # 범례 추가
+        plt.legend(loc='lower right', fontsize=10)
+        
+        # 여백 조정
+        plt.tight_layout()
+        
+        # 그래프 저장 및 표시
+        plt.savefig(
+            os.path.join(fig_path, 'rfecv_performance.png'), 
+            dpi=300, 
+            bbox_inches='tight'
+        )
         plt.show(block=False)
-        plt.savefig(os.path.join(fig_path, 'rfecv_performance.png'))
         plt.pause(3)
         plt.close()
+        
+        # 선택된 특성 반환
         selected_cols = X_train.columns[rfecv.support_].tolist()
-        print(f'RFECV:{len(selected_cols)} {selected_cols}')
+        print(f'RFECV: Selected {len(selected_cols)} features: {selected_cols}')
         return selected_cols
 
     @staticmethod
@@ -194,24 +319,82 @@ class FeatureSelect:
             forward=True,
             floating=False,
             scoring='neg_mean_absolute_error',
-            cv=3,  # cv 수 줄임
-            n_jobs=-1  # 병렬 처리
+            cv=3,
+            n_jobs=-1
         )
-        print(f'SFS: {sfs}')
+        print(f'SFS Configuration: {sfs}')
+        
+        # 모델 학습
         sfs = sfs.fit(X_train, y_train)
-        print('Selected features:', sfs.k_feature_idx_)
-        print('CV Score:', sfs.k_score_)
-        # SFS 과정 시각화
-        fig = plot_sfs(sfs.get_metric_dict(), kind='std_dev')
-        plt.title('Sequential Feature Selection (SFS) Performance')
-        plt.grid()
+        
+        # 메트릭 데이터 추출
+        metrics_dict = sfs.get_metric_dict()
+        
+        # 그래프 스타일 설정
+        plt.style.use('seaborn')
+        plt.figure(figsize=(12, 6))
+        
+        # 데이터 준비
+        x_values = []
+        y_means = []
+        y_stds = []
+        
+        for k in sorted(metrics_dict.keys()):
+            x_values.append(k)
+            y_means.append(metrics_dict[k]['avg_score'])
+            y_stds.append(metrics_dict[k]['std_dev'])
+        
+        # 메인 라인 플롯
+        plt.plot(x_values, y_means, 
+                marker='o', 
+                markersize=8,
+                linewidth=2,
+                color='#2E86C1',
+                label='Average Score')
+        
+        # 표준편차 영역 추가
+        plt.fill_between(x_values,
+                        [m - s for m, s in zip(y_means, y_stds)],
+                        [m + s for m, s in zip(y_means, y_stds)],
+                        alpha=0.2,
+                        color='#2E86C1',
+                        label='Standard Deviation')
+        
+        # 최적 포인트 강조
+        best_k = max(metrics_dict.keys(), key=lambda k: metrics_dict[k]['avg_score'])
+        best_score = metrics_dict[best_k]['avg_score']
+        plt.plot(best_k, best_score,
+                'r*',
+                markersize=15,
+                label=f'Optimal Features: {best_k}')
+        
+        # 그리드 및 레이블 설정
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.xlabel('Number of Features', fontsize=12, fontweight='bold')
+        plt.ylabel('Cross Validation Score (MAE)', fontsize=12, fontweight='bold')
+        plt.title('Sequential Feature Selection (SFS)\nPerformance Analysis',
+                fontsize=14, fontweight='bold', pad=20)
+        
+        # 범례 설정
+        plt.legend(loc='best', fontsize=10)
+        
+        # 여백 조정
+        plt.tight_layout()
+        
+        # 그래프 저장 및 표시
+        plt.savefig(
+            os.path.join(fig_path, 'sfs_performance.png'),
+            dpi=300,
+            bbox_inches='tight'
+        )
         plt.show(block=False)
-        plt.savefig(os.path.join(fig_path, 'sfs_performance.png'))
         plt.pause(3)
         plt.close()
+        
+        # 선택된 특성 처리
         selected_features_sfs = X_train.columns[list(sfs.k_feature_idx_)].tolist()
-        print(f'SFS: {len(selected_features_sfs)} {selected_features_sfs}')
-        #sfs.k_feature_idx_
+        print(f'Selected Features Score: {sfs.k_score_:.4f}')
+        print(f'SFS: Selected {len(selected_features_sfs)} features: {selected_features_sfs}')
         
         return selected_features_sfs
    
@@ -488,6 +671,10 @@ class Utils:
 
 def main():
     threshold_null = 0.9
+    vif_threshold = 5
+    cramer_v_threshold = 0.7
+    min_freq_threshold = 0.05
+
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_path, 'data')
     prep_path = os.path.join(data_path, 'preprocessed')
@@ -506,8 +693,7 @@ def main():
     cols_date = ['단지신청일', '단지승인일','k-사용검사일-사용승인일']
     cols_to_num = []#['좌표X', '좌표Y', '위도', '경도']
     #cols_to_select = ['시군구', '전용면적', '계약년월', '건축년도']
-    vif_threshold = 5
-    cramer_v_threshold = 0.7
+    
     path_feat = os.path.join(prep_path, 'feat_concat_raw.csv')
     df_feat = pd.read_csv(path_feat)
     df_feat = df_feat.loc[:, ~df_feat.columns.str.contains('^Unnamed')]
@@ -549,10 +735,11 @@ def main():
         df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
         df_interpolated.to_csv(path_null_prep)
 
-    vif = FeatureSelect.calculate_vif(df_interpolated, continuous_columns, vif_threshold)
-    cramers_v = FeatureSelect.cramers_v_all(df_interpolated, categorical_columns, cramer_v_threshold)
-        
+
     continuous_columns, categorical_columns = Utils.categorical_numeric(df_interpolated)
+    vif = FeatureSelect.calculate_vif(df_interpolated, continuous_columns, vif_threshold)
+    cramers_v_pairs, cramers_features_to_drop = FeatureSelect.cramers_v_all(df_interpolated, categorical_columns, cramer_v_threshold)
+        
 ## Encode categorical variables
     cols_exclude = ['target', 'is_test']
     df_train, df_test = Utils.unconcat_train_test(df_interpolated)
@@ -564,7 +751,7 @@ def main():
     if os.path.exists(path_encoded):
         concat = pd.read_csv(path_encoded)
     else:
-        min_freq_threshold = 0.05
+        
         ##################X_train, X_test, encode_labels = encode_label(X_train, X_test, categorical_features)
         min_freq_dict = DataPrep.auto_adjust_min_frequency(X_train, base_threshold=min_freq_threshold)
         X_train_cat = X_train[categorical_columns]
@@ -589,34 +776,62 @@ def main():
 
     filter_common_features, filter_union_features, filter_rest_features = FeatureSelect.compare_selected_features(cols_var, cols_corr, ['Variance Threshold', 'Correlation Threshold'], original_column_names)
 ##### Resampling for Feature Selection  
-    n_resample = min(10000, len(X_train))
+    #n_sample = 10000
+    ratio_sample = 0.05
+    random_state =2023
+    k = 20 #kbest #f_regression for num, mutual_info_classif for cat
+    n_resample = int(len(X_train)* ratio_sample)
+    print(f'N resample: {n_resample}, ratio {ratio_sample}')
     X_sampled, y_sampled = resample(X_train, y_train, 
                                             n_samples=n_resample,
-                                            random_state=2023)
+                                            random_state=random_state)
     # #상위 K개 특성만 먼저 선택
-    X_sampled, kbest_features = FeatureSelect.select_features_by_kbest(X_sampled, y_sampled, original_column_names, k=40)
-
-    rf = RandomForestRegressor(random_state=2023)
+    X_cat =X_sampled[categorical_columns]
+    X_num = X_sampled[continuous_columns]
+    
+    X_cat, kbest_features_cat = FeatureSelect.select_features_by_kbest(X_cat, y_sampled, X_cat.columns, mutual_info_classif, k=20)
+    X_num, kbest_features_num = FeatureSelect.select_features_by_kbest(X_num, y_sampled, X_num.columns, f_regression, k=20)
+    
+    
+    #rf = RandomForestRegressor(random_state=2023)
+    # XGBRegressor 모델 생성
+    config = sweep_config_xgb.get('parameters')
+    
+    pprint.pprint(config)
+    model = xgb.XGBRegressor(
+                eta=config.xgboost_eta,
+                max_depth=config.xgboost_max_depth,
+                subsample=config.xgboost_subsample,
+                colsample_bytree=config.xgboost_colsample_bytree,
+                gamma=config.xgboost_gamma,
+                reg_lambda=config.xgboost_reg_lambda,  
+                reg_alpha=config.xgboost_alpha,
+            )
     #rf = Ridge(alpha=1.0)
-    selected_rfe, selected_sfs = FeatureSelect.wrapper_method(X_sampled, y_sampled, rf, fig_path)
+    selected_rfe, selected_sfs = FeatureSelect.wrapper_method(X_sampled, y_sampled, model, fig_path)
     common_features, union_features, rest_features = FeatureSelect.compare_selected_features(selected_rfe, selected_sfs, ['RFE', 'SFS'], original_column_names)
   
     dict_result = {'vif': vif, 
-                   'cramers_v': cramers_v,
-                   'kbest_features': kbest_features,
+                   'cramers_v': cramers_features_to_drop,
+                   #'kbest_features': kbest_features,
                    'filter_common_features': filter_common_features,
                    'filter_union_features': filter_union_features,
                    'filter_rest_features': filter_rest_features,
-                   'common_features': common_features,
-                   'union_features': union_features,
-                   'rest_features': rest_features,
+                   'wrapper_common_features': common_features,
+                   'wrapper_union_features': union_features,
+                   'wrapper_rest_features': rest_features,
                    'selected_rfe': selected_rfe,
                    'selected_sfs': selected_sfs
                    }
     print(dict_result)
     
-    with open(os.path.join(prep_path, 'dict_feature_selection_result.pkl'), 'wb') as f:
-        pickle.dump(dict_result, f)
+    # JSON으로 저장
+    with open(os.path.join(prep_path, 'dict_feature_selection_result.json'), 'w', encoding='utf-8') as f:
+        json.dump(dict_result, f, indent=4, ensure_ascii=False)
+
+    # # 필요한 경우 JSON 파일 읽기
+    # with open(os.path.join(prep_path, 'dict_feature_selection_result.json'), 'r', encoding='utf-8') as f:
+    #     dict_result = json.load(f)
 if __name__ == '__main__':
     main()
 
