@@ -1,6 +1,6 @@
 import wandb
 from train import train_model
-from sweep_config import config_baseline #sweep_config_xgb,
+from sweep_config import config_baseline, config_final #sweep_config_xgb,
 # from sklearn.datasets import load_boston, load_diabetes  # 예제 데이터셋
 from sklearn.model_selection import train_test_split
 import pickle
@@ -44,7 +44,7 @@ def run_sweep_for_model_and_dataset(project_name, count):
         # 스위프 ID가 없으면 새로 생성
         
         #sweep_id = wandb.sweep(sweep_configs, project=project_name)
-        sweep_id = wandb.sweep(config_baseline, project=project_name)
+        sweep_id = wandb.sweep(config_final, project=project_name)
         save_sweep_id(sweep_id, f"sweep_id_{project_name}.txt")
         
     sweep_id = 'h5788eza'

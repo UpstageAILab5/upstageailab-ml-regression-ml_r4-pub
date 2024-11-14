@@ -2,7 +2,35 @@
 method = 'bayes'
 metric = 'rmse'
 # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
+config_final = {
+        'method': method,
+        'metric': {'name': metric, 'goal': 'minimize'},
+        'parameters': {
+            "model": {"values": ["xgboost"]},#, "lightgbm", "catboost"]},
+            "dataset_name": {"values": ["baseline"]},#, "encoded", "feat_null-preped_freq-encoded", "null-preped_freq-encoded"]},
+            "features": {"values": ["removed", "minimum", "medium"]},
+            "null_preped": {"values": ["baseline", "grouped"]},
+            "outlier_removal": {"values": ["none", "iqr_modified"]},
+            "feature_engineer": {"values": ["baseline","year_2020", "address"]},
+            "categorical_encoding": {"values": ["baseline", "freq"]},
+            "split_type": {"values": ["holdout", "kfold"]},
+            "random_seed": {"values": [-1]},
+            "random_forest_n_estimators": {"values": [5]},
+            "random_forest_criterion": {"values": ["squared_error"]},
+            "random_forest_random_state": {"values": [1]},
+            "random_forest_n_jobs": {"values": [-1]},
 
+            'xgboost_n_estimators': {"values": [2000]},
+            'xgboost_eta': {"values": [0.3]},
+            'xgboost_max_depth': {"values": [10]},
+            'xgboost_subsample': {"values": [0.6239]},
+            'xgboost_colsample_bytree': {"values": [0.5305]},
+            'xgboost_gamma': {"values": [4.717]},
+            'xgboost_reg_lambda': {"values": [5.081]},
+            'xgboost_alpha': {"values": [0.4902]},
+            
+        }
+}
 config_baseline = {
         'method': method,
         'metric': {'name': metric, 'goal': 'minimize'},
