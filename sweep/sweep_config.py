@@ -9,9 +9,9 @@ config_final = {
             "model": {"values": ["xgboost"]},#, "lightgbm", "catboost"]},
             "dataset_name": {"values": ["baseline"]},#, "encoded", "feat_null-preped_freq-encoded", "null-preped_freq-encoded"]},
             "features": {"values": ["removed", "minimum", "medium"]},
-            "null_preped": {"values": ["baseline", "grouped"]},
-            "outlier_removal": {"values": ["none", "iqr_modified"]},
-            "feature_engineer": {"values": ["baseline","year_2020", "address"]},
+            "null_preped": {"values": ["baseline"]}, # grouped
+            "outlier_removal": {"values": ["iqr_modified", "none"]},
+            "feature_engineer": {"values": ["year_2020", "address", "baseline",]},
             "categorical_encoding": {"values": ["baseline", "freq"]},
             "split_type": {"values": ["holdout", "kfold"]},
             "random_seed": {"values": [-1]},

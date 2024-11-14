@@ -78,7 +78,7 @@ def train_model(config=None):
 
         # 모델 선택
         print(f'\n#### Model: {model_name} ####\n')
-        print(f'- Data: {dataset_name}\n- Features: {features}\n- Split type:{split_type}\n')
+        print(f'- Data: {dataset_name}\nNull_preped: {null_preped}\nOutlier_removal: {outlier_removal}\nFeatures: {features}\nFeature_engineer: {feature_engineer}\nCategorical_encoding: {categorical_encoding}\n- Split type:{split_type}\n')
         
 
         # 모델 훈련 및 평가

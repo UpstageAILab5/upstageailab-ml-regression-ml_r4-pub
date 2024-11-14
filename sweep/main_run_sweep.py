@@ -47,7 +47,7 @@ def run_sweep_for_model_and_dataset(project_name, count):
         sweep_id = wandb.sweep(config_final, project=project_name)
         save_sweep_id(sweep_id, f"sweep_id_{project_name}.txt")
         
-    sweep_id = 'h5788eza'
+    sweep_id = 't0c5c3tl'
     print(f'\n#### sweep_id: {sweep_id}\n')
     print(f'count: {count}')
     print(f'project_name: {project_name}')
@@ -65,7 +65,7 @@ def main_sweep():
     # print(f'X_test.columns: {X_test.columns}')
     count = 500
     # 데이터셋과 모델 조합에 대해 스위프 실행
-    project_name = 'House_price_prediction_main_baseline'#'House_price_prediction'
+    project_name = 'House_price_prediction_main_baseline_2'#'House_price_prediction'
     run_sweep_for_model_and_dataset(project_name, count)
     # dataset_name = 'k_fold_cross_val'
     # run_sweep_for_model_and_dataset(dataset_name, X_train, y_train, X_test, y_test, count)
