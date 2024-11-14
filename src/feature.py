@@ -79,7 +79,7 @@ class FeatureEngineer():
             print('##### 신축여부 열이 없습니다.')
         try:
             if col_add == 'address':
-                concat_select['시군구+번지'] = concat_select['시���구'].astype(str) + concat_select['번지'].astype(str)
+                concat_select['시군구+���지'] = concat_select['시구'].astype(str) + concat_select['번지'].astype(str)
         except:
             print('No address column')
         #concat_select.head(1)       # 최종 데이터셋은 아래와 같습니다.
@@ -106,7 +106,7 @@ class FeatureEngineer():
         주소를 입력받아 해당 위치의 경도와 위도를 반환합니다.
 
         load_dotenv('/data/ephemeral/home/RealEstatePricePredictor/.env'): 
-        .env 파일을 현재 프로젝트 폴더 경로에서 불러��니다.
+        .env 파일을 현재 프로젝트 폴더 경로에서 불러니다.
         .env 파일에서 KAKAO_API_KEY를 환경 변수로 불러와 api_key에 저장합니다.
         get_lat_lon 함수에서 이 api_key를 사용하여 카카오 API에 요청을 보냅니다.
         """
@@ -188,7 +188,7 @@ class FeatureEngineer():
         target_col = f'{target}_거리'
 
         df_source = pd.merge(df_source, df_target, how="inner", on="구")
-            # 아까 ��작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
+            # 아까 작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
         df_source[target_col] = df_source.apply(lambda row: FeatureEngineer.haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
         return df_source, [target_col]
     @staticmethod
@@ -217,7 +217,7 @@ class FeatureEngineer():
             lon, lat = row[target_coor['x']], row[target_coor['y']]
             target_transformed.append((lon, lat))
         
-        # 거��� 계산
+        # 거 계산
         created_columns = []
         
         for zone_name, radius in radius_ranges.items():
@@ -336,7 +336,7 @@ class FeatureEngineer():
         if target != 'gangnam_apt':
             # 각 반경별 계산
             for zone_name, radius in radius_ranges.items():
-                # ���경 환 (미터 -> 라디안)
+                # 경 환 (미터 -> 라디안)
                 radius_rad = radius / 6371000.0
                 print(f"\n{zone_name} 계산 (반경: {radius}m)")
                 # 반경 내 이웃 찾기
@@ -459,20 +459,24 @@ class FeatureSelect:
         두 범주형 변수 간의 연관성을 측정하는 Cramér's V 계산
         """
         try:
-            # 결측치 처리
+            # Series로 변환 및 결측치 처리
             x = pd.Series(x).fillna('missing')
             y = pd.Series(y).fillna('missing')
             
-            # 데이터 타입 확인
             print(f"Data types after conversion - x: {x.dtype}, y: {y.dtype}")
+            print(f"Unique values - x: {len(x.unique())}, y: {len(y.unique())}")
             
-            # 범주형으로 명시적 변환
+            # 범주형으로 변환
             x = x.astype('category')
             y = y.astype('category')
             
             # 교차표 생성
             confusion_matrix = pd.crosstab(x, y)
             print(f"Contingency table shape: {confusion_matrix.shape}")
+            
+            if confusion_matrix.shape[0] < 2 or confusion_matrix.shape[1] < 2:
+                print("Warning: Not enough categories for Cramer's V calculation")
+                return 0
             
             # chi-square 검정
             chi2 = stats.chi2_contingency(confusion_matrix)[0]
@@ -485,13 +489,15 @@ class FeatureSelect:
             rcorr = r - ((r-1)**2)/(n-1)
             kcorr = k - ((k-1)**2)/(n-1)
             
-            if min((kcorr-1), (rcorr-1)) == 0:
+            if min((kcorr-1), (rcorr-1)) <= 0:
+                print("Warning: Invalid dimensions for Cramer's V calculation")
                 return 0
             
             return np.sqrt(phi2corr / min((kcorr-1), (rcorr-1)))
             
         except Exception as e:
             print(f"Error calculating Cramer's V: {e}")
+            print(f"Error type: {type(e).__name__}")
             return 0
 
     @staticmethod
@@ -502,7 +508,7 @@ class FeatureSelect:
         cramers_v_pairs = {}
         features_to_drop = set()
         
-        # 범주형 변수만 선택하고 Series로 변환
+        # 범주형 변수만 선택
         df_cat = df[categorical_columns].copy()
         
         for i in range(len(categorical_columns)):
@@ -511,20 +517,20 @@ class FeatureSelect:
                 col2 = categorical_columns[j]
                 
                 try:
-                    print(f"Processing columns: {col1} and {col2}")
-                    print(f"Column types: {df_cat[col1].dtype}, {df_cat[col2].dtype}")
+                    print(f"\nProcessing columns: {col1} and {col2}")
                     
-                    # Series로 명시적 변환 및 1차원 데이터 확인
+                    # Series로 명시적 변환
                     x = df_cat[col1].squeeze()
                     y = df_cat[col2].squeeze()
                     
-                    print(f"Data shapes: x: {x.shape}, y: {y.shape}")
-                    print(f"Sample values - {col1}: {x.iloc[:5].tolist()}, {col2}: {y.iloc[:5].tolist()}")
+                    print(f"Column types: {x.dtype}, {y.dtype}")
+                    print(f"Sample values - {col1}: {x.head().tolist()}, {col2}: {y.head().tolist()}")
                     
-                    if x.ndim > 1 or y.ndim > 1:
-                        print(f"Warning: Multi-dimensional data detected. Flattening arrays.")
-                        x = x.values.flatten()
-                        y = y.values.flatten()
+                    # 데이터가 2차원인 경우 1차원으로 변��
+                    if isinstance(x, pd.DataFrame):
+                        x = x.iloc[:, 0]
+                    if isinstance(y, pd.DataFrame):
+                        y = y.iloc[:, 0]
                     
                     cramer_value = FeatureSelect.cramers_v(x, y)
                     cramers_v_pairs[(col1, col2)] = cramer_value
