@@ -109,13 +109,15 @@ def main():
         missing_columns = [col for col in group_cols if col not in df_columns]
         if missing_columns:
             print("Missing columns:", missing_columns)
-        if null_prep_method == 'advanced':
-            df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
-            path_out_null_prep = os.path.join(prep_out_path, 'df_feat_null-preped_advanced.csv')
-        elif null_prep_method == 'baseline':
-            path_out_null_prep = os.path.join(prep_out_path, 'df_feat_null-preped_baseline.csv')
-        df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
-        print(df_interpolated.columns, df_interpolated.shape, df_interpolated.isnull().sum())
+        if df_null_removed.isnull().any().any():
+            print(f'##### Null value found. prep: {null_prep_method}')
+            if null_prep_method == 'advanced':
+                df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+                path_out_null_prep = os.path.join(prep_out_path, 'df_feat_null-preped_advanced.csv')
+            elif null_prep_method == 'baseline':
+                path_out_null_prep = os.path.join(prep_out_path, 'df_feat_null-preped_baseline.csv')
+            df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
+            print(df_interpolated.columns, df_interpolated.shape, df_interpolated.isnull().sum())
         df_interpolated.to_csv(path_out_null_prep)
     
     continuous_columns, categorical_columns = Utils.categorical_numeric(df_interpolated)

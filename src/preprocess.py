@@ -6,14 +6,143 @@ from scipy.sparse import csr_matrix
 from tqdm import tqdm
 import time
 from scipy import sparse
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import RobustScaler, PowerTransformer
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 class DataPrep:
-    def __init__(self):
-        pass
+
+    @staticmethod
+    def transform_and_visualize(X_train, X_test, continuous_features, output_dir='plots', skew_threshold=0.5):
+        """
+        Transform and visualize continuous features in X_train and X_test datasets.
+        
+        Parameters:
+        - X_train: pd.DataFrame - Training data
+        - X_test: pd.DataFrame - Test data
+        - continuous_features: list - List of continuous features
+        - output_dir: str - Directory to save plots
+        - skew_threshold: float - Skewness threshold for transformations
+        
+        Returns:
+        - pd.DataFrame, pd.DataFrame - Transformed X_train and X_test
+        """
+        os.makedirs(output_dir, exist_ok=True)
+
+        transformed_train = X_train.copy()
+        transformed_test = X_test.copy()
+
+        for feature in continuous_features:
+            # Plot original distributions for X_train and X_test
+            plt.figure(figsize=(12, 8))
+
+            # X_train original
+            plt.subplot(2, 2, 1)
+            sns.histplot(X_train[feature], kde=True, color='blue', bins=30)
+            plt.title(f"X_train Original Distribution of {feature}")
+            plt.xlabel(feature)
+            plt.ylabel("Frequency")
+
+            # X_test original
+            plt.subplot(2, 2, 2)
+            sns.histplot(X_test[feature], kde=True, color='blue', bins=30)
+            plt.title(f"X_test Original Distribution of {feature}")
+            plt.xlabel(feature)
+            plt.ylabel("Frequency")
+
+            # Handle skewness and scaling based on X_train
+            skewness = transformed_train[feature].skew()
+            print(f"{feature} skewness before transformation: {skewness}")
+            if abs(skewness) > skew_threshold:
+                # Apply transformation to X_train
+                transformed_train[feature] = np.log1p(transformed_train[feature] - transformed_train[feature].min() + 1) \
+                    if skewness > 0 else PowerTransformer(method='yeo-johnson').fit_transform(transformed_train[[feature]])
+                
+                # Apply the same transformation to X_test
+                transformed_test[feature] = np.log1p(transformed_test[feature] - X_train[feature].min() + 1) \
+                    if skewness > 0 else PowerTransformer(method='yeo-johnson').fit_transform(transformed_test[[feature]])
+            
+            # Apply RobustScaler (fitting only on X_train)
+            scaler = RobustScaler()
+            transformed_train[feature] = scaler.fit_transform(transformed_train[[feature]])
+            transformed_test[feature] = scaler.transform(transformed_test[[feature]])
+
+            # Plot transformed distributions
+            plt.subplot(2, 2, 3)
+            sns.histplot(transformed_train[feature], kde=True, color='green', bins=30)
+            plt.title(f"X_train Transformed Distribution of {feature}")
+            plt.xlabel(feature)
+            plt.ylabel("Frequency")
+
+            plt.subplot(2, 2, 4)
+            sns.histplot(transformed_test[feature], kde=True, color='green', bins=30)
+            plt.title(f"X_test Transformed Distribution of {feature}")
+            plt.xlabel(feature)
+            plt.ylabel("Frequency")
+
+            # Save plot
+            plot_filename = os.path.join(output_dir, f"{feature}_train_test_distribution_comparison.png")
+            plt.savefig(plot_filename)
+            plt.close()
+            
+            print(f"Saved distribution plot for {feature} at {plot_filename}")
+
+        return transformed_train, transformed_test
+    # @staticmethod
+    # def transform_features(df, continuous_features, categorical_encoded_features, skew_threshold=0.5):
+    #     """
+    #     Apply transformations to continuous features using RobustScaler and handle skewness.
+        
+    #     Parameters:
+    #     - df: pd.DataFrame - Input data frame
+    #     - continuous_features: list - List of continuous features
+    #     - categorical_encoded_features: list - List of target encoded categorical features
+    #     - skew_threshold: float - Skewness threshold for transformations
+        
+    #     Returns:
+    #     - pd.DataFrame - Data frame with transformed features
+    #     """
+    #     transformed_df = df.copy()
+
+    #     # Handle continuous features with RobustScaler
+    #     scaler = RobustScaler()
+    #     for feature in continuous_features:
+    #         skewness = transformed_df[feature].skew()
+    #         print(f"{feature} skewness: {skewness}")
+    #         if abs(skewness) > skew_threshold:
+    #             # Apply log transformation or PowerTransform for skewed features
+    #             transformed_df[feature] = np.log1p(transformed_df[feature] - transformed_df[feature].min() + 1) \
+    #                 if skewness > 0 else PowerTransformer(method='yeo-johnson').fit_transform(transformed_df[[feature]])
+            
+    #         # Apply RobustScaler to reduce the influence of outliers
+    #         transformed_df[feature] = scaler.fit_transform(transformed_df[[feature]])
+        
+    #     # Handle target encoded categorical features (if necessary)
+    #     for feature in categorical_encoded_features:
+    #         # Normalization logic for encoded categorical features if needed
+    #         transformed_df[feature] = df[feature]  # Placeholder for any specific encoding treatment
+        
+    #     return transformed_df
+
+    # Example usage:
+    # continuous_feats = ['feature1', 'feature2']
+    # categorical_feats = ['encoded_cat1', 'encoded_cat2']
+    # df_transformed = transform_features(df, continuous_feats, categorical_feats)
+
     @staticmethod
     def target_encoding_all(train_df, test_df, target_cols, target_col_y):
+        train_df_copy = train_df.copy()
+        test_df_copy = test_df.copy()
         for col in target_cols:
-            train_df[col], test_df[col] = DataPrep._target_encoding(train_df, test_df, col, target_col_y)
-        return train_df, test_df
+            train_encoded, test_encoded = DataPrep._target_encoding(train_df_copy, test_df_copy, col, target_col_y)
+            train_df_copy.loc[:, col] = train_encoded
+            test_df_copy.loc[:, col] = test_encoded
+           
+        return train_df_copy, test_df_copy
     @staticmethod
     def _target_encoding(train_df, test_df, column_name, target_col):
         # 학습 데이터에서 각 범주에 대한 목표 변수의 평균 계산
@@ -65,14 +194,24 @@ class DataPrep:
         print('\n#### Interpolation for Null values')
         print(f'보간 전 shape: {concat_select.shape}')
         print(f'보간 전 null 개수: {concat_select.isnull().sum()}')
-        # Interpolation
-        # 연속형 변수는 선형보간을 해주고, 범주형변수는 알수없기에 “unknown”이라고 임의로 보간해 주겠습니다.
         concat_select.info()
-        # 본번, 부번의 경우 float로 되어있지만 범주형 변수의 의미를 가지므로 object(string) 형태로 바꾸어주고 아래 작업을 진행하겠습니다.
-        
-        # 먼저, 연속형 변수와 범주형 변수를 위 info에 따라 분리해주겠습니다.
+
+        # 디버깅 출력 추가
+        print(f'Categorical columns: {categorical_columns}')
+        print(f'Available columns in DataFrame: {concat_select.columns.tolist()}')
+
         # 범주형 변수에 대한 보간
-        concat_select[categorical_columns] = concat_select[categorical_columns].fillna('NULL')
+        try:
+            concat_select[categorical_columns] = concat_select[categorical_columns].fillna('NULL')
+        except ValueError as e:
+            print(f"Error: {e}")
+            # 추가적인 디버깅 정보 출력
+            for col in categorical_columns:
+                if col not in concat_select.columns:
+                    print(f"Column {col} is missing in DataFrame.")
+                else:
+                    print(f"Column {col} length: {len(concat_select[col])}")
+
         # 연속형 변수에 대한 보간 (선형 보간)
         concat_select[continuous_columns] = concat_select[continuous_columns].interpolate(method='linear', axis=0)
         print(f'보간된 모습을 확인해봅니다.\n{concat_select.isnull().sum()}')

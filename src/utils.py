@@ -7,6 +7,30 @@ def chk_index_duplicated(df):
 
 class Utils:
     @staticmethod
+    def clean_feature_names(df):
+        """
+        데이터프레임의 컬럼 이름에서 특수 문자를 제거하거나 대체
+        """
+        # 컬럼 이름 매핑 사전 생성
+        column_mapping = {
+            col: col.replace('+', '_plus_')
+            .replace('-', '_minus_')
+            .replace('[', '_')
+            .replace(']', '_')
+            .replace(' ', '_')
+            .replace('/', '_')
+            .replace('(', '_')
+            .replace(')', '_')
+            .replace(',', '_')
+            .strip('_') # 끝에 있는 언더스코어 제거
+            for col in df.columns
+        }
+        
+        # 컬럼 이름 변경
+        df_cleaned = df.rename(columns=column_mapping)
+        
+        return df_cleaned, column_mapping
+    @staticmethod
     def clean_column_names(df):
         # 하이픈을 언더바로 변경
         df.columns = df.columns.str.replace('-', '_', regex=False)
@@ -85,17 +109,47 @@ class Utils:
         print(combined['is_test'].value_counts())
         return combined
     @staticmethod
-    def unconcat_train_test(concat):
-        Utils.remove_unnamed_columns(concat)
-        if 'is_test' not in concat.columns:
-            raise ValueError("'is_test' 열이 데이터프레임에 없습니다.")
-        # df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-        dt = concat.query('is_test==0')
-        # y_train = dt['target']
-        dt.drop(columns=['is_test'], inplace=True)
-        dt_test = concat.query('is_test==1')
-        dt_test.drop(columns=['target', 'is_test'], inplace=True)
-        return dt, dt_test
+    def unconcat_train_test(concat_select):
+        concat_select = Utils.remove_unnamed_columns(concat_select)
+                # 이제 다시 train과 test dataset을 분할해줍니다. 위에서 제작해 놓았던 is_test 칼럼을 이용합니다.
+        dt_train = concat_select.query('is_test==0')
+        dt_test = concat_select.query('is_test==1')
+
+        # 이제 is_test 칼럼은 drop해줍니다.
+        dt_train.drop(['is_test'], axis = 1, inplace=True)
+        dt_test.drop(['is_test'], axis = 1, inplace=True)
+        dt_test['target'] = 0
+        print(dt_train.shape, dt_test.shape)
+        return dt_train, dt_test
+    # def unconcat_train_test(concat):
+    #     """
+    #     결합된 데이터프레임을 train과 test로 분리하는 함수
+        
+    #     Args:
+    #         concat (pd.DataFrame): 'is_test' 열을 포함한 결합된 데이터프레임
+            
+    #     Returns:
+    #         tuple: (train_df, test_df) - 분리된 train과 test 데이터프레임
+    #     """
+    #     # Unnamed 열 제거 및 데이터프레임 복사
+    #     concat = Utils.remove_unnamed_columns(concat)
+        
+    #     # 'is_test' 열 존재 여부 확인
+    #     if 'is_test' not in concat.columns:
+    #         raise ValueError("'is_test' 열이 데이터프레임에 없습니다.")
+        
+    #     # 데이터프레임 복사
+    #     concat_copy = concat.copy()
+        
+    #     # train 데이터 추출 및 처리
+    #     train_df = concat_copy[~concat_copy['is_test']].copy()
+    #     train_df.drop(columns=['is_test'], inplace=True)
+        
+    #     # test 데이터 추출 및 처리
+    #     test_df = concat_copy[concat_copy['is_test']].copy()
+    #     test_df.drop(columns=['target', 'is_test'], inplace=True)
+        
+        return train_df, test_df
     @staticmethod
     def clean_df(df):
         df = Utils.remove_unnamed_columns(df)

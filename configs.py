@@ -41,7 +41,7 @@ config_xgb = {
  
         'parameters': {
        
-            'xgboost_eta': 0.3,
+            'xgboost_eta': 0.2,
             'xgboost_max_depth': 10,
             'xgboost_n_estimators': 500,
             'xgboost_subsample': 0.6239,

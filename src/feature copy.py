@@ -1,3 +1,4 @@
+
 import os
 import pandas as pd
 import numpy as np
@@ -20,7 +21,6 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 from sklearn.neighbors import BallTree
-from scipy import stats  
 
 class FeatureEngineer():
     def __init__(self):
@@ -79,7 +79,7 @@ class FeatureEngineer():
             print('##### 신축여부 열이 없습니다.')
         try:
             if col_add == 'address':
-                concat_select['시군구+번지'] = concat_select['시���구'].astype(str) + concat_select['번지'].astype(str)
+                concat_select['시군구+번지'] = concat_select['시군구'].astype(str) + concat_select['번지'].astype(str)
         except:
             print('No address column')
         #concat_select.head(1)       # 최종 데이터셋은 아래와 같습니다.
@@ -106,7 +106,7 @@ class FeatureEngineer():
         주소를 입력받아 해당 위치의 경도와 위도를 반환합니다.
 
         load_dotenv('/data/ephemeral/home/RealEstatePricePredictor/.env'): 
-        .env 파일을 현재 프로젝트 폴더 경로에서 불러��니다.
+        .env 파일을 현재 프로젝트 폴더 경로에서 불러옵니다.
         .env 파일에서 KAKAO_API_KEY를 환경 변수로 불러와 api_key에 저장합니다.
         get_lat_lon 함수에서 이 api_key를 사용하여 카카오 API에 요청을 보냅니다.
         """
@@ -158,7 +158,7 @@ class FeatureEngineer():
             if i % 1000 == 0:
                 df.to_csv(os.path.join(prep_path, f'backup_df_prep_null_coord_{i}.csv'), index=True)
 
-        print(f'총 {len(grouped)}개의 아파트 그룹 중 {count}개의 아파트 주소가 좌 변환 오류')
+        print(f'총 {len(grouped)}개의 아파트 그룹 중 {count}개의 아파트 주소가 좌표 변환 오류')
         return df
     # 위경도를 이용해 두 지점간의 거리를 구하는 함수를 생성합니다.
     @staticmethod
@@ -188,7 +188,7 @@ class FeatureEngineer():
         target_col = f'{target}_거리'
 
         df_source = pd.merge(df_source, df_target, how="inner", on="구")
-            # 아까 ��작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
+            # 아까 제작한 haversine_distance 함수를 이용해 대장아파트와의 거리를 계산하고, 새롭게 컬럼을 구성합니다.
         df_source[target_col] = df_source.apply(lambda row: FeatureEngineer.haversine_distance(row[feature_source[1]], row[feature_source[0]], row[feature_target[1]], row[feature_target[0]]), axis=1)
         return df_source, [target_col]
     @staticmethod
@@ -217,7 +217,7 @@ class FeatureEngineer():
             lon, lat = row[target_coor['x']], row[target_coor['y']]
             target_transformed.append((lon, lat))
         
-        # 거��� 계산
+        # 거리 계산
         created_columns = []
         
         for zone_name, radius in radius_ranges.items():
@@ -336,7 +336,7 @@ class FeatureEngineer():
         if target != 'gangnam_apt':
             # 각 반경별 계산
             for zone_name, radius in radius_ranges.items():
-                # ���경 환 (미터 -> 라디안)
+                # 반경 변환 (미터 -> 라디안)
                 radius_rad = radius / 6371000.0
                 print(f"\n{zone_name} 계산 (반경: {radius}m)")
                 # 반경 내 이웃 찾기
@@ -453,94 +453,112 @@ class FeatureSelect:
         return high_vif_columns
 
     # 2. Cramer's V 계산 (categorical columns)
+    # @staticmethod
+    # def cramers_v(confusion_matrix):
+    #     chi2 = stats.chi2_contingency(confusion_matrix)[0]
+    #     n = confusion_matrix.sum()
+    #     r, k = confusion_matrix.shape
+    #     return np.sqrt(chi2 / (n * min(k-1, r-1)))
+    # @staticmethod
+    # def cramers_v_all(df, categorical_columns, cramer_v_threshold):
+    #     high_cramer_v_columns = []
+    #     for i in range(len(categorical_columns)):
+    #         for j in range(i + 1, len(categorical_columns)):
+    #             col1 = categorical_columns[i]
+    #             col2 = categorical_columns[j]
+    #             contingency_table = pd.crosstab(df[col1], df[col2])
+    #             cramer_v_value = FeatureSelect.cramers_v(contingency_table.values)
+    #             print(f"Cramer's V between {col1} and {col2}: {cramer_v_value:.4f}")
+    #             if cramer_v_value > cramer_v_threshold:
+    #                 high_cramer_v_columns.append((col1, col2))
+    #                 print(f"High Cramer's V between {col1} and {col2}: {cramer_v_value:.4f}")
+    #     print(f'High Cramer\'s V Columns: {high_cramer_v_columns}')
+    #     return high_cramer_v_columns
     @staticmethod
-    def cramers_v(x, y):
+    def cramers_v_all(df, categorical_columns, threshold=0.7):
         """
-        두 범주형 변수 간의 연관성을 측정하는 Cramér's V 계산
+        데이터프레임의 범주형 변수들 간의 Cramer's V 계산하고 
+        threshold 이상의 연관성을 가진 컬럼 쌍 반환
+        
+        Parameters:
+        -----------
+        df : pandas DataFrame
+            분석할 데이터프레임
+        threshold : float, default=0.7
+            Cramer's V 임계값 (이 값 이상의 연관성을 가진 쌍 추출)
+        
+        Returns:
+        --------
+        highly_correlated : list of tuples
+            높은 연관성을 가진 컬럼 쌍의 리스트
+        columns_to_drop : list
+            제거 추천되는 컬럼 리스트
         """
-        try:
-            # 결측치 처리
-            x = pd.Series(x).fillna('missing')
-            y = pd.Series(y).fillna('missing')
-            
-            # 데이터 타입 확인
-            print(f"Data types after conversion - x: {x.dtype}, y: {y.dtype}")
-            
-            # 범주형으로 명시적 변환
-            x = x.astype('category')
-            y = y.astype('category')
-            
-            # 교차표 생성
+        print(f'\n##### Cramer\'s V Analysis\n')
+        def cramers_v(x, y):
             confusion_matrix = pd.crosstab(x, y)
-            print(f"Contingency table shape: {confusion_matrix.shape}")
-            
-            # chi-square 검정
-            chi2 = stats.chi2_contingency(confusion_matrix)[0]
+            chi2 = chi2_contingency(confusion_matrix)[0]
             n = confusion_matrix.sum().sum()
-            
-            # Cramér's V 계산
-            phi2 = chi2 / n
-            r, k = confusion_matrix.shape
-            phi2corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
-            rcorr = r - ((r-1)**2)/(n-1)
-            kcorr = k - ((k-1)**2)/(n-1)
-            
-            if min((kcorr-1), (rcorr-1)) == 0:
-                return 0
-            
-            return np.sqrt(phi2corr / min((kcorr-1), (rcorr-1)))
-            
-        except Exception as e:
-            print(f"Error calculating Cramer's V: {e}")
-            return 0
+            min_dim = min(confusion_matrix.shape) - 1
+            return np.sqrt(chi2 / (n * min_dim))
 
-    @staticmethod
-    def cramers_v_all(df, categorical_columns, threshold):
-        """
-        모든 범주형 변수 쌍에 대해 Cramér's V 계산
-        """
-        cramers_v_pairs = {}
-        features_to_drop = set()
+        # 범주형 컬럼만 선택 (object 또는 category 타입)
+        #categorical_columns = df.select_dtypes(include=['object', 'category']).columns
+        n_cols = len(categorical_columns)
         
-        # 범주형 변수만 선택하고 Series로 변환
-        df_cat = df[categorical_columns].copy()
+        # 결과를 저장할 리스트
+        highly_correlated = []
+        correlation_scores = {}
         
-        for i in range(len(categorical_columns)):
-            for j in range(i + 1, len(categorical_columns)):
+        # 모든 가능한 컬럼 쌍에 대해 Cramer's V 계산
+        for i in range(n_cols):
+            for j in range(i + 1, n_cols):
                 col1 = categorical_columns[i]
                 col2 = categorical_columns[j]
                 
-                try:
-                    print(f"Processing columns: {col1} and {col2}")
-                    print(f"Column types: {df_cat[col1].dtype}, {df_cat[col2].dtype}")
-                    
-                    # Series로 명시적 변환 및 1차원 데이터 확인
-                    x = df_cat[col1].squeeze()
-                    y = df_cat[col2].squeeze()
-                    
-                    print(f"Data shapes: x: {x.shape}, y: {y.shape}")
-                    print(f"Sample values - {col1}: {x.iloc[:5].tolist()}, {col2}: {y.iloc[:5].tolist()}")
-                    
-                    if x.ndim > 1 or y.ndim > 1:
-                        print(f"Warning: Multi-dimensional data detected. Flattening arrays.")
-                        x = x.values.flatten()
-                        y = y.values.flatten()
-                    
-                    cramer_value = FeatureSelect.cramers_v(x, y)
-                    cramers_v_pairs[(col1, col2)] = cramer_value
-                    
-                    print(f"Cramer's V value for {col1} and {col2}: {cramer_value}")
-                    
-                    if cramer_value > threshold:
-                        features_to_drop.add(col2)
-                        print(f"Adding {col2} to features to drop (Cramer's V: {cramer_value})")
-                        
-                except Exception as e:
-                    print(f"Error processing columns {col1} and {col2}: {e}")
-                    print(f"Error type: {type(e).__name__}")
-                    cramers_v_pairs[(col1, col2)] = 0
+                # Cramer's V 계산
+                cramer_value = cramers_v(df[col1], df[col2])
+                
+                # 임계값 이상인 경우 저장
+                if cramer_value >= threshold:
+                    highly_correlated.append((col1, col2, cramer_value))
+                    # 각 컬럼의 상관관계 점수 누적
+                    correlation_scores[col1] = correlation_scores.get(col1, 0) + cramer_value
+                    correlation_scores[col2] = correlation_scores.get(col2, 0) + cramer_value
         
-        return cramers_v_pairs, list(features_to_drop)
+        # 제거할 컬럼 선택 (각 쌍에서 더 높은 상관관계 점수를 가진 컬럼)
+        columns_to_drop = set()
+        for col1, col2, _ in highly_correlated:
+            if correlation_scores[col1] > correlation_scores[col2]:
+                columns_to_drop.add(col1)
+            else:
+                columns_to_drop.add(col2)
+        
+        # 결과 출력
+        print(f"\n=== Cramer's V Analysis Results ===")
+        print(f"분석된 범주형 변수 개수: {n_cols}")
+        print(f"임계값: {threshold}")
+        print("\n높은 연관성을 가진 변수 쌍:")
+        for col1, col2, score in sorted(highly_correlated, key=lambda x: x[2], reverse=True):
+            print(f"{col1} - {col2}: {score:.3f}")
+        
+        print("\n제거 추천되는 변수:")
+        for col in sorted(columns_to_drop):
+            print(f"- {col} (누적 상관계수: {correlation_scores[col]:.3f})")
+        
+        return highly_correlated, list(columns_to_drop)
+
+    # 사용 예시
+    """
+    # 데이터프레임에서 높은 연관성을 가진 컬럼 찾기
+    highly_correlated, drops = calculate_cramers_v_pairs(
+        df,
+        threshold=0.7  # Cramer's V 임계값 설정
+    )
+
+    # 제거 추천되는 컬럼 제거
+    df_cleaned = df.drop(columns=drops)
+    """
     @staticmethod
     def select_features_by_kbest(X_sampled, y_sampled, original_column_names, score_func, k=20):
         k = min(k, X_sampled.shape[1])  # 특성 수의 절반 또는 20개
@@ -564,7 +582,7 @@ class FeatureSelect:
         # 결과 출력
         print(f"{list_features[0]}로 선택된 피처: \n{selected_rfe}\n")
         print(f"{list_features[1]}로 선택된 피처: \n{selected_sfs}\n")
-        print("통 피처:\n", common_features)
+        print("��통 피처:\n", common_features)
         print("합집합 피처:\n", union_features)
         rest_features = list(set(original_column_names) - set(union_features))
         print(f'Rest features: \n{rest_features}\n')
@@ -804,7 +822,7 @@ def main():
 
     df_combined = pd.read_csv(os.path.join(prep_path, 'df_combined_distance_feature_after_null_fill.csv'), index_col=0)
     #############
-    ### 4. 건물 좌표 준 대상 좌표 거리 분석: 지하철, 버스
+    ### 4. 건물 좌표 ���준 대상 좌표 거리 분석: 지하철, 버스
     df_coor = {'x': '좌표X', 'y': '좌표Y'}
     subway_coor = {'x': '경도', 'y':'위도' }
     bus_coor = {'x': 'X좌표', 'y': 'Y좌표'}

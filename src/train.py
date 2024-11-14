@@ -94,7 +94,7 @@ def cross_validate_and_evaluate(model, X, y, scale_data, random_seed):
 def train_model(config=None):
     
     with wandb.init() as run:
-                
+    
         config_random_forest = {
                 'parameters': {
                     'random_seed': -1,
@@ -132,8 +132,8 @@ def train_model(config=None):
                     'lightgbm_colsample_bytree': 0.8,
                     'lightgbm_subsample': 0.8,
                     'lightgbm_min_data_in_leaf': 20,
-                    
-                
+                    'lightgbm_lambda_l1': 0.1,
+                    'lightgbm_lambda_l2': 0.1,
                 }
         }
 
@@ -150,10 +150,11 @@ def train_model(config=None):
                     'catboost_boosting_type': 'Plain'
                 }
         }
-        config_xgb =config_xgb['parameters']
+        config_xgb = config_xgb['parameters']
         config_lightgbm = config_lightgbm['parameters']
         config_catboost = config_catboost['parameters']
         config_random_forest = config_random_forest['parameters']
+        
 
         config = wandb.config
         
@@ -173,6 +174,7 @@ def train_model(config=None):
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         data_path = os.path.join(base_path, 'data')
         out_path = os.path.join(base_path, 'output')
+        plot_path = os.path.join(out_path, 'plots')
         prep_path = os.path.join(data_path, 'preprocessed')
 
         df = pd.read_csv(os.path.join(prep_path, 'df_raw.csv'))
@@ -215,7 +217,44 @@ def train_model(config=None):
         
         cols_to_remove_all = cols_to_remove + cols_to_remove_manual + cols_to_remove_cramer
         cols_to_remove_all = list(set(cols_to_remove_all))
-
+        print(f'\n##### Select Features...\n')
+        if features == 'baseline':
+            cols_to_remove = [col for col in cols_to_remove if col in df.columns]
+            cols_to_remove = list(set(cols_to_remove))
+            
+            df = df.drop(columns=cols_to_remove)
+            print(f'Baseline number of feature: {len(df.columns)}/{len(df.columns)}')
+        elif features == 'manual':
+            cols_total = cols_id + cols_manual
+            cols_total = [col for col in cols_total if col in df.columns]
+            cols_total = list(set(cols_total))
+            print(f'Manual number of feature: {len(cols_total)}/{len(df.columns)}')
+            df = df[cols_total]
+        elif features == 'minimum':
+            cols_total = cols_id + cols + cols_feat +cols_feat_common
+            cols_total = list(set(cols_total))
+            cols_total = [col for col in cols_total if col in df.columns]
+            print(f'Minimum number of feature: {len(cols_total)}/{len(df.columns)}')
+            df = df[cols_total]
+        elif features == 'features_all':
+            cols_total = cols_id + cols + cols_feat + cols_feat2
+            cols_total = [col for col in cols_total if col in df.columns]
+            cols_total = list(set(cols_total))
+            print(f'All number of feature: {len(cols_total)}/{len(df.columns)}')
+            df = df[cols_total]
+        elif features == 'remove_all':
+            cols_to_remove_all = [col for col in cols_to_remove_all if col in df.columns]
+            cols_to_remove_all = list(set(cols_to_remove_all))
+            
+            df = df.drop(columns=cols_to_remove_all)
+            print(f'Remove all - Rest features: {len(df.columns)}/{len(df.columns)}')
+        elif features =='wrapper':
+            cols_total = cols_id + cols + cols_feat + cols_feat2
+            cols_total = [col for col in cols_total if col in df.columns]
+            cols_total = list(set(cols_total))
+            print(f'Wrapper method - number of feature: {len(cols_total)}/{len(df.columns)}')
+            df = df[cols_total]
+        print(f'\n##### Feature selected: {df.shape}\n{df.columns}')
         print(f'##### Prep null...')
         df = DataPrep.remove_null(df)
         continuous_columns, categorical_columns = Utils.categorical_numeric(df)
@@ -244,41 +283,7 @@ def train_model(config=None):
         # elif feature_engineer == 'address':
         #     df = feat_eng.prep_feat(df, year = 2020, col_add='address')
 
-        if features == 'baseline':
-            cols_to_remove = [col for col in cols_to_remove if col in df.columns]
-            cols_to_remove = list(set(cols_to_remove))
-            print(f'Baseline number of feature: {len(cols_to_remove)}/{len(df.columns)}')
-            df = df.drop(columns=cols_to_remove)
-        elif features == 'manual':
-            cols_total = cols_id + cols_manual
-            cols_total = [col for col in cols_total if col in df.columns]
-            cols_total = list(set(cols_total))
-            print(f'Manual number of feature: {len(cols_total)}/{len(df.columns)}')
-            df = df[cols_total]
-        elif features == 'minimum':
-            cols_total = cols_id + cols + cols_feat +cols_feat_common
-            cols_total = list(set(cols_total))
-            print(f'Minimum number of feature: {len(cols_total)}/{len(df.columns)}')
-            cols_total = [col for col in cols_total if col in df.columns]
-            df = df[cols_total]
-        elif features == 'features_all':
-            cols_total = cols_id + cols + cols_feat + cols_feat2
-            cols_total = [col for col in cols_total if col in df.columns]
-            cols_total = list(set(cols_total))
-            print(f'All number of feature: {len(cols_total)}/{len(df.columns)}')
-            df = df[cols_total]
-        elif features == 'remove_all':
-            cols_to_remove_all = [col for col in cols_to_remove_all if col in df.columns]
-            cols_to_remove_all = list(set(cols_to_remove_all))
-            print(f'Remove all features: {len(cols_to_remove_all)}/{len(df.columns)}')
-            df = df.drop(columns=cols_to_remove_all)
-        elif features =='wrapper':
-            ols_total = cols_id + cols + cols_feat + cols_feat2
-            cols_total = [col for col in cols_total if col in df.columns]
-            cols_total = list(set(cols_total))
-            print(f'Wrapper method - number of feature: {len(cols_total)}/{len(df.columns)}')
-            df = df[cols_total]
-        print(f'\n##### Feature selected: {df.shape}\n{df.columns}')
+       
 #####
         
         #df = Utils.clean_column_names(df) # 컬럼 문자열 기호 제거
@@ -311,6 +316,8 @@ def train_model(config=None):
 
         if scale_data == 'baseline':
             print('No scaling')
+        elif scale_data == 'scaling':
+            X_train_encoded, X_test_encoded = DataPrep.transform_and_visualize(X_train_encoded, X_test_encoded, continuous_columns, output_dir=plot_path, skew_threshold=0.5)
         elif scale_data == 'log_transform_target':
             print('Log scaling')
             y_train = np.log(y_train)
@@ -339,7 +346,7 @@ def train_model(config=None):
                 feature_fraction=config_lightgbm['lightgbm_feature_fraction'],
                 bagging_fraction=config_lightgbm['lightgbm_bagging_fraction'],
                 lambda_l1=config_lightgbm['lightgbm_lambda_l1'],
-                lambda_l2=config_lightgbm.get['lightgbm_lambda_l2'],
+                lambda_l2=config_lightgbm['lightgbm_lambda_l2'],
                 #early_stopping_rounds=50
             )
         elif model_name == "random_forest":
@@ -364,15 +371,16 @@ def train_model(config=None):
             )
         else:
             raise ValueError("Unsupported model type")
-        
+        X_train, feature_mapping = Utils.clean_feature_names(X_train_encoded)
+        X_test = X_test.rename(columns=feature_mapping)
         if split_type == 'kfold':
-            model, rmse_avg = cross_validate_and_evaluate(model, X_train_encoded, y_train, scale_data, random_seed)
+            model, rmse_avg = cross_validate_and_evaluate(model, X_train, y_train, scale_data, random_seed)
             print(f'kfold: mean RMSE for val data set: {rmse_avg}')
             rmse = rmse_avg
-            X_train, X_val, y_train, y_val = train_test_split(X_train_encoded, y_train, test_size=0.2, random_state=random_seed)
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=random_seed)
             pred = model.predict(X_val)
         elif split_type == 'holdout':
-            X_train, X_val, y_train, y_val = train_test_split(X_train_encoded, y_train, test_size=0.2, random_state=random_seed)
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=random_seed)
             model.fit(X_train, y_train)#, early_stopping_rounds=50,verbose=100)
         
             pred = model.predict(X_val)
@@ -382,8 +390,8 @@ def train_model(config=None):
         wandb.log({"rmse": rmse})
         wandb.finish()
         
-        # X_test_encoded = Utils.prepare_test_data(X_test_encoded, model)
-        # real_test_pred = model.predict(X_test_encoded)
+        # X_test_encoded = Utils.prepare_test_data(X_test, model)
+        # real_test_pred = model.predict(X_test)
 
         # preds_df = pd.DataFrame(real_test_pred.astype(int), columns=["target"])
         # out_pred_path = Utils.get_unique_filename(os.path.join(out_path,f'output_{features}_{outlier_removal}_{categorical_encoding}_{feature_engineer}_{model_name}_{split_type}.csv'))

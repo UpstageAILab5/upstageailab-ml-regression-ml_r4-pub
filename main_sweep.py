@@ -36,8 +36,8 @@ def run_sweep_for_model_and_dataset(project_name, count):
     wandb.agent(sweep_id, function=lambda: train_model(), project = project_name, count= count)  # 각 조합마다 count 회의 스위프 수행
 
 def main_sweep():
-    count = 500
-    project_name = 'House_price_prediction_ml4_v0'#'House_price_prediction'
+    count = 700
+    project_name = 'House_price_prediction_ml4_v2'#'House_price_prediction'
     run_sweep_for_model_and_dataset(project_name, count)
 
 main_sweep()
