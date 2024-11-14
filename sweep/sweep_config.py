@@ -2,6 +2,59 @@
 method = 'bayes'
 metric = 'rmse'
 
+sweep_config_baseline = {
+        'method': method,
+        'metric': {'name': metric, 'goal': 'minimize'},
+        'parameters': {
+            "model": {"values": ["xgboost", "random_forest"]},#, "lightgbm", "catboost"]},
+            "dataset_name": {"values": ["baseline"]},#, "encoded", "feat_null-preped_freq-encoded", "null-preped_freq-encoded"]},
+            "features": {"values": ["baseline", "removed", "minimum", "medium"]},
+            "categorical_encoding": {"values": ["baseline", "freq"]},
+            "outlier_removal": {"values": ["baseline", "none", "iqr_modified"]},
+            "split_type": {"values": ["holdout", "kfold"]},
+            'xgboost_n_estimators': {
+                'distribution': 'int_uniform',
+                'min': 100,
+                'max': 1000
+            },
+            'xgboost_eta': {
+                'distribution': 'uniform',  # log_uniform 대신 uniform 사용
+                'min': 0.01,
+                'max': 0.3
+            },
+            'xgboost_max_depth': {
+                'distribution': 'int_uniform',
+                'min': 3,
+                'max': 10
+            },
+            'xgboost_subsample': {
+                'distribution': 'uniform',
+                'min': 0.6,
+                'max': 1.0
+            },
+            'xgboost_colsample_bytree': {
+                'distribution': 'uniform',
+                'min': 0.4,
+                'max': 1.0
+            },
+            'xgboost_gamma': {  # xgboost-specific
+                'distribution': 'uniform',
+                'min': 0.0,
+                'max': 5.0
+            },
+            'xgboost_reg_lambda': {
+                'distribution': 'uniform',
+            'min': 0.0,
+            'max': 10.0
+            },
+            'xgboost_alpha': {
+                'distribution': 'uniform',
+                'min': 0.0,
+                'max': 10.0
+            },
+        
+        }
+}
 
 sweep_config_xgb = {
         'method': method,
