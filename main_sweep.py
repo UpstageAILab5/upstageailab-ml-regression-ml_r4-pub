@@ -20,7 +20,7 @@ def run_sweep_for_model_and_dataset(project_name, count):
     except FileNotFoundError:
         print('err')
         sweep_id = None
-    # sweep_id = "g0kmrn6l"
+    sweep_id = "zrd7tymz"
     if not sweep_id:
 
         print('No sweep id. generating...')

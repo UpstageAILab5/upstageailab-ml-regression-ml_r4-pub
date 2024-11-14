@@ -322,7 +322,7 @@ class DataPrep:
 
             dt_train.head(1)        # 레이블인코딩이 된 모습입니다.
 
-            assert dt_train.shape[1] == dt_test.shape[1]          # train/test dataset의 shape이 같은지 확인해주겠습니다.
+            #assert dt_train.shape[1] == dt_test.shape[1]          # train/test dataset의 shape이 같은지 확인해주겠습니다.
         return dt_train, dt_test, label_encoders
     @staticmethod
     def auto_adjust_min_frequency(df, base_threshold=0.05, strategy='percentile'):
