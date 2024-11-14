@@ -687,6 +687,8 @@ def main():
     path_null_prep = os.path.join(prep_path, 'df_feat_null-preped.csv')
     path_encoded = os.path.join(prep_path, 'df_feat_null-preped_freq-encoded.csv')
 
+    encode_method = 'baseline'#'freq'
+    null_prep_method = 'baseline'
     cols_to_remove = ['등기신청일자', '거래유형', '중개사소재지'] +['홈페이지','k-전화번호', 'k-팩스번호', '고용보험관리번호']
     cols_to_str = ['본번', '부번'] + ['구', '동', '강남여부', '신축여부', 'cluster_dist_transport', 'cluster_dist_transport_count', 'cluster_select','subway_zone_type', 'bus_zone_type']
     cols_id = ['is_test', 'target']
@@ -731,7 +733,11 @@ def main():
         missing_columns = [col for col in group_cols if col not in df_columns]
         if missing_columns:
             print("Missing columns:", missing_columns)
-        df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+        if null_prep_method == 'advanced':
+            df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+            path_null_prep = os.path.join(prep_path, 'df_feat_null-preped_advanced.csv')
+        elif null_prep_method == 'baseline':
+            path_null_prep = os.path.join(prep_path, 'df_feat_null-preped_baseline.csv')
         df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
         df_interpolated.to_csv(path_null_prep)
 
@@ -747,10 +753,11 @@ def main():
     X_train = df_train.drop(columns=['target'])
     X_test = df_test
     
-    encode_method = 'label'#'freq'
+    
 
     if os.path.exists(path_encoded):
         concat = pd.read_csv(path_encoded)
+        
     else:
         if encode_method == 'freq':
             ##################X_train, X_test, encode_labels = encode_label(X_train, X_test, categorical_features)
@@ -758,10 +765,9 @@ def main():
             X_train_cat = X_train[categorical_columns]
             X_test_cat = X_test[categorical_columns]
             X_train_cat_encoded, X_test_cat_encoded = DataPrep.frequency_encode(X_train_cat, X_test_cat, min_freq_dict)
-        elif encode_method:
-            print('')
-            encode_method()
-
+        elif encode_method == 'baseline':
+            path_encoded = os.path.join(prep_path, 'df_feat_null-preped_label-encoded_baseline.csv')
+            X_train_cat_encoded, X_test_cat_encoded, label_encoders = DataPrep.encode_label(X_train, X_test, categorical_columns)
 
         X_train = pd.concat([X_train_cat_encoded, X_train.drop(columns=categorical_columns)], axis=1)
         X_test = pd.concat([X_test_cat_encoded, X_test.drop(columns=categorical_columns)], axis=1)
@@ -797,7 +803,6 @@ def main():
     
     X_cat, kbest_features_cat = FeatureSelect.select_features_by_kbest(X_cat, y_sampled, X_cat.columns, mutual_info_classif, k=20)
     X_num, kbest_features_num = FeatureSelect.select_features_by_kbest(X_num, y_sampled, X_num.columns, f_regression, k=20)
-    
     
     #rf = RandomForestRegressor(random_state=2023)
     # XGBRegressor 모델 생성

@@ -26,10 +26,71 @@ import numpy as np
 import pickle
 import xgboost as xgb
 from typing import List
+# SettingWithCopyWarning 경고 무시
+pd.options.mode.chained_assignment = None  # default='warn'
+import sys
+from pathlib import Path
 
-from sweep_config import sweep_config_xgb
+current = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+print(f'\n##########current: {current}')
+
+
+sys.path.append(str(current))
+from sweep.sweep_config import config_baseline
 # df.loc[some_condition, 'column'] = new_value
 
+
+class FeatureEngineer():
+    def __init__(self):
+        print('#### Init Feature Engineering... ')
+    @staticmethod
+    def prep_feat(concat_select, year = 2009,  col_add=''):
+        # 시군구, 년월 등 분할할 수 있는 변수들은 세부사항 고려를 용이하게 하기 위해 모두 분할해 주겠습니다.
+        concat_select['구'] = concat_select['시군구'].map(lambda x : x.split()[1])
+        concat_select['동'] = concat_select['시군구'].map(lambda x : x.split()[2])
+        #
+
+        concat_select['계약년'] = concat_select['계약년월'].astype('str').apply(lambda x: x[:4])
+        concat_select['계약월'] = concat_select['계약년월'].astype('str').apply(lambda x: x[4:])
+        #concat_select['계약년월'] = concat_select['계약년월'].astype('str').apply(lambda x: x[:4] + x[4:])
+        
+        #
+        
+        all = list(concat_select['구'].unique())
+        gangnam = ['강서구', '영등포구', '동작구', '서초구', '강남구', '송파구', '강동구']
+        gangbuk = [x for x in all if x not in gangnam]
+
+        assert len(all) == len(gangnam) + len(gangbuk)       # 알맞게 분리되었는지 체크합니다.
+
+        # 강남의 여부를 체크합니다.
+        is_gangnam = []
+        for x in concat_select['구'].tolist() :
+            if x in gangnam :
+                is_gangnam.append(1)
+            else :
+                is_gangnam.append(0)
+
+        # 파생변수를 하나 만릅니다.
+        concat_select['강남여부'] = is_gangnam
+        
+        # 건축년도 분포는 아래와 같습니다. 특히 2005년이 Q3에 해당합니다.
+        # 2009년 이후에 지어진 건물은 10%정도 되는 것을 확인할 수 있습니다.
+        concat_select['건축년도'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.8, 0.9])
+
+        # 따라서 2009년 이후에 지어졌으면 비교적 신축이라고 판단하고, 신축 여부 변수를 제작해보도록 하겠습니다.
+        concat_select['신축여부'] = concat_select['건축년도'].apply(lambda x: 1 if x >= int(year) else 0)
+        try:
+            if col_add == 'address':
+                concat_select['시군구+번지'] = concat_select['시군구'].astype(str) + concat_select['번지'].astype(str)
+        except:
+            print('No address column')
+        #concat_select.head(1)       # 최종 데이터셋은 아래와 같습니다.
+        del concat_select['계약년월']
+        del concat_select['시군구']
+        print(concat_select.shape)
+        print(concat_select.columns)
+        return concat_select
 class FeatureSelect:
     def __init__(self):
         pass
@@ -402,6 +463,27 @@ class DataPrep:
     def __init__(self):
         pass
     @staticmethod
+    def remove_outliers_iqr(dt, column_name, modified=False):
+        df = dt.query('is_test == 0')       # train data 내에 있는 이상치만 제거하도록 하겠습니다.
+        df_test = dt.query('is_test == 1')
+
+        Q1 = df[column_name].quantile(0.25)
+        Q3 = df[column_name].quantile(0.75)
+        IQR = Q3 - Q1
+        if modified:
+            print('Modified IQR')
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 290
+        else:
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+
+
+        df = df[(df[column_name] >= lower_bound) & (df[column_name] <= upper_bound)]
+
+        result = pd.concat([df, df_test])   # test data와 다시 합쳐주겠습니다.
+        return result
+    @staticmethod
     def convert_dtype(concat_select, columns_to_str, columns_to_num):
         for col in columns_to_str:  
             concat_select.loc[:, col] = concat_select.loc[:, col].astype('str')
@@ -527,16 +609,16 @@ class DataPrep:
             lbl = LabelEncoder()
         
             # Label-Encoding을 fit
-            lbl.fit( dt_train[col].astype(str) )
-            dt_train[col] = lbl.transform(dt_train[col].astype(str))
+            lbl.fit( dt_train.loc[:, col].astype(str) )
+            dt_train.loc[:, col] = lbl.transform(dt_train.loc[:, col].astype(str))
             label_encoders[col] = lbl           # 나중에 후처리를 위해 레이블인코더를 저장해주겠습니다.
 
             # Test 데이터에만 존재하는 새로 출현한 데이터를 신규 클래스로 추가해줍니다.
-            dt_test[col] = dt_test[col].astype(str)
+            dt_test.loc[:, col] = dt_test[col].astype(str)
             for label in np.unique(dt_test[col]):
                 if label not in lbl.classes_: # unseen label 데이터인 경우
                     lbl.classes_ = np.append(lbl.classes_, label) # 미처리 시 ValueError발생하니 주의하세요!
-            dt_test[col] = lbl.transform(dt_test[col].astype(str))
+            dt_test.loc[:, col] = lbl.transform(dt_test.loc[:, col].astype(str))
 
             dt_train.head(1)        # 레이블인코딩이 된 모습입니다.
 
@@ -615,18 +697,98 @@ class DataPrep:
         return train_df, test_df
 class Utils:
     @staticmethod
+    def clean_column_names(df):
+        # 하이픈을 언더바로 변경
+        df.columns = df.columns.str.replace('-', '_', regex=False)
+        # 알파벳, 숫자, 언더바를 제외한 특수 기호 제거
+        df.columns = df.columns.str.replace('[^A-Za-z0-9_]', '', regex=True)
+        return df
+    @staticmethod
+    def prepare_test_data(X_test, model):
+        """
+        테스트 데이터를 예측을 위해 준비
+        """
+        # target 컬럼 제거
+        if 'target' in X_test.columns:
+            X_test = X_test.drop(['target'], axis=1)
+        
+        # 학습에 사용된 컬럼 확인
+        train_columns = model.feature_names_in_
+        
+        # 누락된 컬럼 체크
+        missing_cols = set(train_columns) - set(X_test.columns)
+        if missing_cols:
+            raise ValueError(f"테스트 데이터에 다음 컬럼이 없습니다: {missing_cols}")
+        
+        # 불필요한 컬럼 체크
+        extra_cols = set(X_test.columns) - set(train_columns)
+        if extra_cols:
+            print(f"다음 컬럼은 예측에 사용되지 않습니다: {extra_cols}")
+        
+        # 학습에 사용된 컬럼만 선택하고 순서 맞추기
+        X_test = X_test[train_columns]
+        
+        return X_test
+    @staticmethod
+    def get_unique_filename(filepath: str) -> str:
+        """
+        파일이 이미 존재할 경우 파일명_1, 파일명_2 등으로 변경
+        
+        Parameters:
+        -----------
+        filepath : str
+            원본 파일 경로
+        
+        Returns:
+        --------
+        str : 유니크한 파일 경로
+        """
+        if not os.path.exists(filepath):
+            return filepath
+        
+        # 파일 경로와 확장자 분리
+        directory = os.path.dirname(filepath)
+        filename = os.path.basename(filepath)
+        name, ext = os.path.splitext(filename)
+        
+        # 새로운 파일명 생성
+        counter = 1
+        while True:
+            new_filename = f"{name}_{counter}{ext}"
+            new_filepath = os.path.join(directory, new_filename)
+            
+            if not os.path.exists(new_filepath):
+                return new_filepath
+            counter += 1
+    @staticmethod
     def concat_train_test(dt, dt_test):
         Utils.remove_unnamed_columns(dt)
         Utils.remove_unnamed_columns(dt_test)
+        dt = dt.reset_index(drop=True)
+        dt_test = dt_test.reset_index(drop=True)
         dt['is_test'] = 0
         dt_test['is_test'] = 1
-        dt_test['target'] = 0
+        
+        # dt_test에 'target' 열 추가
+        if 'target' not in dt_test.columns:
+            dt_test['target'] = 0
+        
+        # 인덱스를 고유하게 설정
+        dt.index = range(len(dt))
+        dt_test.index = range(len(dt_test))
+        
+        print(f'dt.shape: {dt.shape}')
+        print(f'dt_test.shape: {dt_test.shape}')
+        
         concat = pd.concat([dt, dt_test], axis=0).reset_index(drop=True)
         print(concat['is_test'].value_counts())
         return concat
     @staticmethod
     def unconcat_train_test(concat):
         Utils.remove_unnamed_columns(concat)
+        if 'is_test' not in concat.columns:
+            raise ValueError("'is_test' 열이 데이터프레임에 없습니다.")
+        # df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
         dt = concat.query('is_test==0')
         # y_train = dt['target']
         dt.drop(columns=['is_test'], inplace=True)
@@ -671,7 +833,7 @@ class Utils:
 
 def main():
     threshold_null = 0.9
-    vif_threshold = 5
+    vif_threshold = 10 
     cramer_v_threshold = 0.7
     min_freq_threshold = 0.05
 
@@ -680,16 +842,33 @@ def main():
     prep_path = os.path.join(data_path, 'preprocessed')
     fig_path = os.path.join(base_path, 'output', 'plots')
     #####
+
+    group_arg = 'baseline'
+
+
+    if group_arg == 'baseline':
+        null_prep_method = 'baseline'
+        encode_method = 'baseline'#'freq'
+        print(f'##### Null prep: Baseline\nEncode: {encode_method}')
+    elif group_arg == 'advanced':
+        null_prep_method = 'advanced'
+        encode_method = 'freq'
+        print(f'##### Null prep: Advanced\nEncode: {encode_method}')
+    prep_out_path = os.path.join(prep_path, group_arg)
+    os.makedirs(prep_out_path, exist_ok=True)
     path_raw = os.path.join(prep_path, 'df_raw.csv')
     
     path_feat = os.path.join(prep_path, 'feat_concat_raw.csv')
 
-    path_null_prep = os.path.join(prep_path, 'df_feat_null-preped.csv')
-    path_encoded = os.path.join(prep_path, 'df_feat_null-preped_freq-encoded.csv')
+    path_out_null_prep = os.path.join(prep_out_path, 'df_null-preped.csv')
+    path_out_encoded = os.path.join(prep_out_path, 'df_null-preped-encoded.csv')
 
+    
     cols_to_remove = ['등기신청일자', '거래유형', '중개사소재지'] +['홈페이지','k-전화번호', 'k-팩스번호', '고용보험관리번호']
     cols_to_str = ['본번', '부번'] + ['구', '동', '강남여부', '신축여부', 'cluster_dist_transport', 'cluster_dist_transport_count', 'cluster_select','subway_zone_type', 'bus_zone_type']
     cols_id = ['is_test', 'target']
+    cols_add = ['시군구', '번지']
+
     cols_date = ['단지신청일', '단지승인일','k-사용검사일-사용승인일']
     cols_to_num = []#['좌표X', '좌표Y', '위도', '경도']
     #cols_to_select = ['시군구', '전용면적', '계약년월', '건축년도']
@@ -700,6 +879,8 @@ def main():
     #df = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'))
     df_raw = pd.read_csv(path_raw)
     df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed')]
+    df_raw['시군구+번지'] = df_raw['시군구'].astype(str) + df_raw['번지'].astype(str)
+    print(f'시군구 번지 컬럼 생성: {df_raw.columns}')
 
     #df_raw = df_raw.loc[:, cols_to_select + cols_id]
     print(f'\n##################df_raw.columns: {df_raw.columns}')
@@ -712,9 +893,14 @@ def main():
     
 ##### Null prep: Interpolation for Null values
     continuous_columns, categorical_columns = Utils.categorical_numeric(df_raw)
-    if os.path.exists(path_null_prep):
-        df_interpolated = pd.read_csv(path_null_prep)
+    flag=False
+    if flag:#os.path.exists(path_out_null_prep):
+        df_interpolated = pd.read_csv(path_out_null_prep, index_col=0)
+        df_interpolated = Utils.remove_unnamed_columns(df_interpolated)
+        print(f'##### Load null prep: {path_out_null_prep}')
+        print(df_interpolated.columns, df_interpolated.shape, df_interpolated.isnull().sum())
     else:
+        print(f'##### Null prep: Interpolation for Null values')
         cols_to_remove = [col for col in cols_to_remove if col in df_raw.columns]
         df_raw.drop(columns=cols_to_remove, inplace=True)
         print(f'#####\nRemove columns: {len(cols_to_remove)}\n{cols_to_remove}\n###')
@@ -724,16 +910,21 @@ def main():
         df_null_removed = DataPrep.convert_dtype(df_null_removed, cols_to_str, cols_to_num)
         continuous_columns, categorical_columns = Utils.categorical_numeric(df_null_removed)
         
-        group_cols = ['시군구', '도로명', '아파트명']
+        group_cols = ['시군구', '번지', '아파트명'] # 도로명
         df_columns = set(df_null_removed.columns)
 
         # 리스트에서 데이터프레임에 없는 컬럼 찾기
         missing_columns = [col for col in group_cols if col not in df_columns]
         if missing_columns:
             print("Missing columns:", missing_columns)
-        df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+        if null_prep_method == 'advanced':
+            df_null_removed = DataPrep.prep_null_advanced(df_null_removed, continuous_columns, categorical_columns, group_cols=missing_columns)
+            path_out_null_prep = os.path.join(prep_out_path, 'df_feat_null-preped_advanced.csv')
+        elif null_prep_method == 'baseline':
+            path_out_null_prep = os.path.join(prep_out_path, 'df_feat_null-preped_baseline.csv')
         df_interpolated = DataPrep.prep_null(df_null_removed, continuous_columns, categorical_columns)
-        df_interpolated.to_csv(path_null_prep)
+        print(df_interpolated.columns, df_interpolated.shape, df_interpolated.isnull().sum())
+        df_interpolated.to_csv(path_out_null_prep)
 
 
     continuous_columns, categorical_columns = Utils.categorical_numeric(df_interpolated)
@@ -748,20 +939,26 @@ def main():
     X_test = df_test
     
 
-    if os.path.exists(path_encoded):
-        concat = pd.read_csv(path_encoded)
+    if os.path.exists(path_out_encoded):
+        concat = pd.read_csv(path_out_encoded, index_col=0)
+        concat = Utils.remove_unnamed_columns(concat)
+        print(f'##### Load encoded: {path_out_encoded}')
+        continuous_columns, categorical_columns = Utils.categorical_numeric(concat)
     else:
-        
-        ##################X_train, X_test, encode_labels = encode_label(X_train, X_test, categorical_features)
-        min_freq_dict = DataPrep.auto_adjust_min_frequency(X_train, base_threshold=min_freq_threshold)
-        X_train_cat = X_train[categorical_columns]
-        X_test_cat = X_test[categorical_columns]
-        X_train_cat_encoded, X_test_cat_encoded = DataPrep.frequency_encode(X_train_cat, X_test_cat, min_freq_dict)
+        if encode_method == 'freq':
+           
+            min_freq_dict = DataPrep.auto_adjust_min_frequency(X_train, base_threshold=min_freq_threshold)
+            X_train_cat = X_train[categorical_columns]
+            X_test_cat = X_test[categorical_columns]
+            X_train_cat_encoded, X_test_cat_encoded = DataPrep.frequency_encode(X_train_cat, X_test_cat, min_freq_dict)
+        elif encode_method == 'baseline':
+            X_train_cat_encoded, X_test_cat_encoded, label_encoders = DataPrep.encode_label(X_train, X_test, categorical_columns)
+
         X_train = pd.concat([X_train_cat_encoded, X_train.drop(columns=categorical_columns)], axis=1)
         X_test = pd.concat([X_test_cat_encoded, X_test.drop(columns=categorical_columns)], axis=1)
         X_train['target'] = y_train
         concat = Utils.concat_train_test(X_train, X_test)
-        concat.to_csv(path_encoded)
+        concat.to_csv(path_out_encoded)
         
 ## Select Features  
     print(f'##### Original dataset shape: {concat.shape}')                                                        
@@ -792,10 +989,9 @@ def main():
     X_cat, kbest_features_cat = FeatureSelect.select_features_by_kbest(X_cat, y_sampled, X_cat.columns, mutual_info_classif, k=20)
     X_num, kbest_features_num = FeatureSelect.select_features_by_kbest(X_num, y_sampled, X_num.columns, f_regression, k=20)
     
-    
     #rf = RandomForestRegressor(random_state=2023)
     # XGBRegressor 모델 생성
-    config = sweep_config_xgb.get('parameters')
+    config = config_baseline.get('parameters')
     
     pprint.pprint(config)
     model = xgb.XGBRegressor(

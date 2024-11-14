@@ -1,0 +1,35 @@
+{
+    "python.venvPath": "/data/ephemeral/home/miniconda3/envs",
+    "python.pythonPath": "/data/ephemeral/home/miniconda3/bin//python",
+    "notebook.lineNumbers": "on",
+    "python.condaPath": "/data/ephemeral/home/miniconda3/bin/conda",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "editor.formatOnSave": true,
+    // 파일 감시 제외
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/env/**": true,
+        "**/venv/**": true
+    },
+    // 검색 제외
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/bower_components": true,
+        "**/env": true,
+        "**/venv": true
+    },
+    // 성능 최적화 설정
+    "editor.minimap.enabled": false,
+    "workbench.enablePreview": false,
+    "files.restoreUndoStack": false,
+    "editor.smoothScrolling": false,
+    "workbench.editor.enablePreview": false,
+    // Git 설정
+    "git.enabled": true,
+    "git.autorefresh": false,
+    // 터미널 설정
+    "terminal.integrated.scrollback": 1000
+}

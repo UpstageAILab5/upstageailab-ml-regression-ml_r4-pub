@@ -1,58 +1,35 @@
 
 method = 'bayes'
 metric = 'rmse'
+# RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
 
-sweep_config_baseline = {
+config_baseline = {
         'method': method,
         'metric': {'name': metric, 'goal': 'minimize'},
         'parameters': {
             "model": {"values": ["xgboost", "random_forest"]},#, "lightgbm", "catboost"]},
             "dataset_name": {"values": ["baseline"]},#, "encoded", "feat_null-preped_freq-encoded", "null-preped_freq-encoded"]},
-            "features": {"values": ["baseline", "removed", "minimum", "medium"]},
+            "features": {"values": ["baseline"]},#, "removed", "minimum", "medium"]},
+            "null_preped": {"values": ["baseline"]},#, "grouped"]},
+            "outlier_removal": {"values": ["baseline"]},#, "none", "iqr_modified"]},
+            "feature_engineer": {"values": ["baseline","year_2020", "address"]},
             "categorical_encoding": {"values": ["baseline", "freq"]},
-            "outlier_removal": {"values": ["baseline", "none", "iqr_modified"]},
             "split_type": {"values": ["holdout", "kfold"]},
-            'xgboost_n_estimators': {
-                'distribution': 'int_uniform',
-                'min': 100,
-                'max': 1000
-            },
-            'xgboost_eta': {
-                'distribution': 'uniform',  # log_uniform 대신 uniform 사용
-                'min': 0.01,
-                'max': 0.3
-            },
-            'xgboost_max_depth': {
-                'distribution': 'int_uniform',
-                'min': 3,
-                'max': 10
-            },
-            'xgboost_subsample': {
-                'distribution': 'uniform',
-                'min': 0.6,
-                'max': 1.0
-            },
-            'xgboost_colsample_bytree': {
-                'distribution': 'uniform',
-                'min': 0.4,
-                'max': 1.0
-            },
-            'xgboost_gamma': {  # xgboost-specific
-                'distribution': 'uniform',
-                'min': 0.0,
-                'max': 5.0
-            },
-            'xgboost_reg_lambda': {
-                'distribution': 'uniform',
-            'min': 0.0,
-            'max': 10.0
-            },
-            'xgboost_alpha': {
-                'distribution': 'uniform',
-                'min': 0.0,
-                'max': 10.0
-            },
-        
+            "random_seed": {"values": [-1]},
+            "random_forest_n_estimators": {"values": [5]},
+            "random_forest_criterion": {"values": ["squared_error"]},
+            "random_forest_random_state": {"values": [1]},
+            "random_forest_n_jobs": {"values": [-1]},
+
+            'xgboost_n_estimators': {"values": [2000]},
+            'xgboost_eta': {"values": [0.3]},
+            'xgboost_max_depth': {"values": [10]},
+            'xgboost_subsample': {"values": [0.6239]},
+            'xgboost_colsample_bytree': {"values": [0.5305]},
+            'xgboost_gamma': {"values": [4.717]},
+            'xgboost_reg_lambda': {"values": [5.081]},
+            'xgboost_alpha': {"values": [0.4902]},
+            
         }
 }
 
