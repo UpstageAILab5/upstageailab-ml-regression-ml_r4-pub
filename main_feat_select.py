@@ -135,13 +135,16 @@ def main():
         continuous_columns, categorical_columns = Utils.categorical_numeric(concat)
     else:
         if encode_method == 'freq':
+            print('\n##### Frequency Encoding\n')
             min_freq_dict = DataPrep.auto_adjust_min_frequency(X_train, base_threshold=min_freq_threshold)
             X_train_cat = X_train[categorical_columns]
             X_test_cat = X_test[categorical_columns]
             X_train_cat_encoded, X_test_cat_encoded = DataPrep.frequency_encode(X_train_cat, X_test_cat, min_freq_dict)
         elif encode_method == 'baseline':
+            print('\n##### Label Encoding\n')
             X_train_cat_encoded, X_test_cat_encoded, label_encoders = DataPrep.encode_label(X_train, X_test, categorical_columns)
         elif encode_method == 'target_encoding':
+            print('\n##### Target Encoding\n')
             X_train_cat_encoded, X_test_cat_encoded = DataPrep.target_encoding_all(X_train, X_test, categorical_columns, 'target')
 
         # 인덱스 재설정

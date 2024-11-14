@@ -41,12 +41,10 @@ class FeatureEngineer():
         except:
             print('##### 시군구 열이 없습니다.')
         try:    
-            if '계약년' not in concat_select.columns:
-                # concat_select['계약년'] = concat_select['계약년월'].astype('str').str[:4]
-                concat_select['계약년'] = concat_select['계약년월'].astype('str').apply(lambda x: x[:4])
-                concat_select['계약월'] = concat_select['계약년월'].astype('str').apply(lambda x: x[4:])
-            else:
-                print('##### 계약년 열이 이미 존재합니다.')
+            # concat_select['계약년'] = concat_select['계약년월'].astype('str').str[:4]
+            concat_select['계약년'] = concat_select['계약년월'].astype('str').apply(lambda x: x[:4])
+            concat_select['계약월'] = concat_select['계약년월'].astype('str').apply(lambda x: x[4:])
+        
         #concat_select['계약년월'] = concat_select['계약년월'].astype('str').apply(lambda x: x[:4] + x[4:])
         except:
             print('##### 계약년월 열이 없습니다.')
@@ -436,6 +434,7 @@ class FeatureSelect:
     # 1. VIF 계산 (numerical columns)
     @staticmethod
     def calculate_vif(dataframe, numerical_columns, vif_threshold):
+        print('\n##### VIF Analysis\n')
         numerical_columns = [col for col in numerical_columns if col in dataframe.columns]
         X = dataframe[numerical_columns].copy()
 

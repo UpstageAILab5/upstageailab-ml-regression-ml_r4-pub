@@ -12,7 +12,7 @@ config_baseline = {
             "features": {"values": ["baseline", "manual", "minimum", "features_all", "remove_all", "wrapper"]},
             "null_preped": {"values": ["baseline", "grouped"]},
             "outlier_removal": {"values": ["iqr_modified", "baseline", "none"]},
-            "feature_engineer": {"values": ["year_2020", "address", "baseline"]},
+            # "feature_engineer": {"values": ["year_2020", "address", "baseline"]},
             "categorical_encoding": {"values": ["baseline", "freq", "target_encoding"]},
             "split_type": {"values": ["holdout", "kfold"]},
             "scale_data": {"values": ["log_transform_target", "baseline", "scaling"]},

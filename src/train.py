@@ -160,14 +160,14 @@ def train_model(config=None):
         null_preped = config.null_preped 
         outlier_removal = config.outlier_removal
         features = config.features
-        feature_engineer = config.feature_engineer
+        # feature_engineer = config.feature_engineer
         categorical_encoding = config.categorical_encoding
         split_type = config.split_type
         model_name = config.model
         scale_data = config.scale_data
         # 모델 선택
         print(f'\n#### Model: {model_name} ####')
-        print(f'- Features: {features}\n- Null_preped: {null_preped}\n- Outlier_removal: {outlier_removal}\n- Feature_engineer: {feature_engineer}\n- Categorical_encoding: {categorical_encoding}\n- Split type:{split_type}\n- Scale data: {scale_data}\n')
+        print(f'- Features: {features}\n- Null_preped: {null_preped}\n- Outlier_removal: {outlier_removal}\n- Categorical_encoding: {categorical_encoding}\n- Split type:{split_type}\n- Scale data: {scale_data}\n')
         # 모델 훈련 및 평가
         
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -175,8 +175,14 @@ def train_model(config=None):
         out_path = os.path.join(base_path, 'output')
         prep_path = os.path.join(data_path, 'preprocessed')
 
-        df = pd.read_csv(os.path.join(prep_path, 'df_raw.csv')) 
+        df = pd.read_csv(os.path.join(prep_path, 'df_raw.csv'))
+        df_feat = pd.read_csv(os.path.join(prep_path, 'feat_concat_raw.csv'))
+        # df_feat['시군구+번지'] = df['시군구'] + ' ' + df['번지']
+        # df_feat.to_csv(os.path.join(prep_path, 'feat_concat_raw.csv'), index=False)
+        df = pd.concat([df, df_feat], axis=1)
+        # df_feat=Utils.remove_unnamed_columns(df_feat)
         df = Utils.remove_unnamed_columns(df)
+        print(f'##### Features:{len(df.columns)} {df.columns}')
         cols_id = ['is_test', 'target']
         
         cols = ['시군구', '전용면적', '계약년월', '건축년도', '층', '도로명', '아파트명']
@@ -231,46 +237,46 @@ def train_model(config=None):
         feat_eng = FeatureEngineer()
         #####
 
-        if feature_engineer=='baseline':
-            df = feat_eng.prep_feat(df)
-        elif feature_engineer == 'year_2020':
-            df = feat_eng.prep_feat(df, year = 2020)
-        elif feature_engineer == 'address':
-            df = feat_eng.prep_feat(df, year = 2020, col_add='address')
+        # if feature_engineer=='baseline':
+        #     df = feat_eng.prep_feat(df)
+        # elif feature_engineer == 'year_2020':
+        #     df = feat_eng.prep_feat(df, year = 2020)
+        # elif feature_engineer == 'address':
+        #     df = feat_eng.prep_feat(df, year = 2020, col_add='address')
 
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
             cols_to_remove = list(set(cols_to_remove))
-            print(f'Baseline number of feature: {len(cols_to_remove)}\n{len(df.columns)}')
+            print(f'Baseline number of feature: {len(cols_to_remove)}/{len(df.columns)}')
             df = df.drop(columns=cols_to_remove)
         elif features == 'manual':
             cols_total = cols_id + cols_manual
             cols_total = [col for col in cols_total if col in df.columns]
             cols_total = list(set(cols_total))
-            print(f'Manual number of feature: {len(cols_total)}\n{len(df.columns)}')
+            print(f'Manual number of feature: {len(cols_total)}/{len(df.columns)}')
             df = df[cols_total]
         elif features == 'minimum':
             cols_total = cols_id + cols + cols_feat +cols_feat_common
             cols_total = list(set(cols_total))
-            print(f'Minimum number of feature: {len(cols_total)}\n{len(df.columns)}')
+            print(f'Minimum number of feature: {len(cols_total)}/{len(df.columns)}')
             cols_total = [col for col in cols_total if col in df.columns]
             df = df[cols_total]
         elif features == 'features_all':
             cols_total = cols_id + cols + cols_feat + cols_feat2
             cols_total = [col for col in cols_total if col in df.columns]
             cols_total = list(set(cols_total))
-            print(f'All number of feature: {len(cols_total)}\n{len(df.columns)}')
+            print(f'All number of feature: {len(cols_total)}/{len(df.columns)}')
             df = df[cols_total]
         elif features == 'remove_all':
             cols_to_remove_all = [col for col in cols_to_remove_all if col in df.columns]
             cols_to_remove_all = list(set(cols_to_remove_all))
-            print(f'Remove all features: {len(cols_to_remove_all)}\n{len(df.columns)}')
+            print(f'Remove all features: {len(cols_to_remove_all)}/{len(df.columns)}')
             df = df.drop(columns=cols_to_remove_all)
         elif features =='wrapper':
             ols_total = cols_id + cols + cols_feat + cols_feat2
             cols_total = [col for col in cols_total if col in df.columns]
             cols_total = list(set(cols_total))
-            print(f'Wrapper method - number of feature: {len(cols_total)}\n{len(df.columns)}')
+            print(f'Wrapper method - number of feature: {len(cols_total)}/{len(df.columns)}')
             df = df[cols_total]
         print(f'\n##### Feature selected: {df.shape}\n{df.columns}')
 #####
@@ -340,7 +346,7 @@ def train_model(config=None):
             
             model = RandomForestRegressor(
                 n_estimators=config_random_forest['random_forest_n_estimators'],
-                n_jobs=config_catboost['random_forest_n_jobs'],
+                n_jobs=config_random_forest['random_forest_n_jobs'],
                 random_state=config_random_forest['random_forest_random_state'],
                 criterion=config_random_forest['random_forest_criterion']
         

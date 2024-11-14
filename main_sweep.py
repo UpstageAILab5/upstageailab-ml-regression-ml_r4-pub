@@ -37,7 +37,7 @@ def run_sweep_for_model_and_dataset(project_name, count):
 
 def main_sweep():
     count = 500
-    project_name = 'Upstageailab5_ml_r4_House_price_prediction_1'#'House_price_prediction'
+    project_name = 'House_price_prediction_ml4_v0'#'House_price_prediction'
     run_sweep_for_model_and_dataset(project_name, count)
 
 main_sweep()
