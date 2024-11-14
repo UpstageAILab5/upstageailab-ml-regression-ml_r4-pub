@@ -108,10 +108,11 @@ def train_model(config=None):
         
         print(f'##### Prep null...')
         df = DataPrep.remove_null(df)
+        continuous_columns, categorical_columns = Utils.categorical_numeric(df)
         if null_preped =='baseline':
-            df = DataPrep.prep_null()
+            df = DataPrep.prep_null(df, continuous_columns, categorical_columns)
         elif null_preped =='grouped':
-            df = DataPrep.prep_null_advanced()
+            df = DataPrep.prep_null_advanced(df, continuous_columns, categorical_columns)
     
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
