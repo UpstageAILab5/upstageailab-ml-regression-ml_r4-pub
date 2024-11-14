@@ -1,33 +1,44 @@
+import wandb
+from sklearn.metrics import mean_squared_error
 import xgboost as xgb
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import os
-import pickle
-from sklearn import metrics
-from sklearn.model_selection import KFold, cross_val_score, KFold, train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import make_scorer, mean_squared_error
-from src.feature import  XAI
-from src.utils import Utils
-import warnings
 import lightgbm as lgb
-warnings.filterwarnings('ignore')
+from sklearn.ensemble import RandomForestRegressor
+from catboost import CatBoostRegressor
+import numpy as np
+from sklearn.model_selection import cross_val_score, KFold, train_test_split
+from sklearn.metrics import make_scorer, mean_squared_error
+from sklearn import metrics
+import os
+import pandas as pd
 
-class Model():
-    def __init__(self, config):
-        self.config = config
-        self.out_path = config.get('path').get('out')
-        self.random_seed = config.get('random_seed')
-        self.logger_instance = config.get('logger')
-        self.logger_instance.setup_logger(log_file='preprocessing')
-        self.logger = self.logger_instance.logger
-        self.logger.info('#### Init Model Train... ')
-        self.time_delay = config.get('time_delay')
-    ### Model training
-    @Utils.timeit
-    def cross_validate_and_evaluate(self, model, X, y):
+from src.feature import FeatureSelect, FeatureEngineer
+from src.utils import Utils
+from src.preprocess import DataPrep
+import sys
+
+# 현재 파일의 경로를 기준으로 상위 디렉토리 경로 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+sys.path.append(parent_dir)
+print(f'###### Parent dir: {parent_dir}')
+
+from config.config import config_xgb, config_lightgbm, config_catboost, config_random_forest
+# module_path = os.path.dirname(os.path.abspath(__file__))
+# print(module_path)
+# # 모듈 검색 경로에 추가
+# if module_path not in sys.path:
+#     sys.path.append(module_path)
+
+# 사용할 데이터셋을 로드하고 분할
+# datasets = {
+#     "boston": load_boston(),
+#     "diabetes": load_diabetes()
+# }
+random_seed = 2024
+
+def rmse(y_true, y_pred):
+    return np.sqrt(mean_squared_error(y_true, y_pred))
+def cross_validate_and_evaluate(model, X, y, scale_data, random_seed):
         """
         교차 검증 및 모델 평가
         Parameters:
@@ -35,15 +46,11 @@ class Model():
             X: 특성 데이터프레임
             y: 타겟 시리즈
         """
-        self.logger.info(f"\n=== 교차 검증 시작 ===")
-        self.logger.info(f"전체 데이터셋 shape - X: {X.shape}, y: {y.shape}")
-        
-        kf = KFold(n_splits=5, shuffle=True, random_state=self.random_seed)
+        kf = KFold(n_splits=5, shuffle=True, random_state=random_seed)
         rmse_scores = []
         
         for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
-            self.logger.info(f"\n--- Fold {fold}/5 ---")
-            
+ 
             # 데이터 분할
             X_train = X.iloc[train_index]
             X_val = X.iloc[val_index]
@@ -51,172 +58,259 @@ class Model():
             y_val = y.iloc[val_index]
             
             # 분할된 데이터셋 shape 출력
-            self.logger.info(f"Train set shape - X: {X_train.shape}, y: {y_train.shape}")
-            self.logger.info(f"Val set shape   - X: {X_val.shape}, y: {y_val.shape}")
+            print(f"Train set shape - X: {X_train.shape}, y: {y_train.shape}")
+            print(f"Val set shape   - X: {X_val.shape}, y: {y_val.shape}")
             
             # 모델 학습
-            self.logger.info("모델 학습 중...")
+            print("모델 학습 중...")
             model.fit(X_train, y_train)
             
             # 예측 및 RMSE 계산
             val_pred = model.predict(X_val)
+            if scale_data == 'log_transform_target':
+                val_pred = np.exp(val_pred)
             rmse = np.sqrt(mean_squared_error(y_val, val_pred))
             rmse_scores.append(rmse)
             
-            self.logger.info(f'Fold {fold} RMSE: {rmse:,.2f}')
+            print(f'Fold {fold} RMSE: {rmse:,.2f}')
             
             # 메모리 정리
-            del X_train, X_val, y_train, y_val, val_pred
-            import gc
-            gc.collect()
+            # del X_train, X_val, y_train, y_val, val_pred
+            # import gc
+            # gc.collect()
         
         mean_rmse = np.mean(rmse_scores)
         std_rmse = np.std(rmse_scores)
         
-        self.logger.info("\n=== 교차 검증 결과 ===")
-        self.logger.info(f'평균 RMSE: {mean_rmse:,.2f} (±{std_rmse:,.2f})')
-        self.logger.info(f'개별 RMSE: {[f"{score:,.2f}" for score in rmse_scores]}')
+        print("\n=== 교차 검증 결과 ===")
+        print(f'평균 RMSE: {mean_rmse:,.2f} (±{std_rmse:,.2f})')
+        print(f'개별 RMSE: {[f"{score:,.2f}" for score in rmse_scores]}')
         
         return model, mean_rmse
-    def model_train(self, X, y, model_name='xgboost', type='baseline'):
-    # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
-        #model = RandomForestRegressor(n_estimators=5, criterion='squared_error', random_state=1, n_jobs=-1)
+def train_model(config=None):
+    with wandb.init() as run:
+        config = wandb.config
+        null_preped = config.null_preped 
+        outlier_removal = config.outlier_removal
+        features = config.features
+        feature_engineer = config.feature_engineer
+        categorical_encoding = config.categorical_encoding
+        split_type = config.split_type
+        model_name = config.model
+        scale_data = config.scale_data
+        # 모델 선택
+        print(f'\n#### Model: {model_name} ####')
+        print(f'- Features: {features}\n- Null_preped: {null_preped}\n- Outlier_removal: {outlier_removal}\n- Feature_engineer: {feature_engineer}\n- Categorical_encoding: {categorical_encoding}\n- Split type:{split_type}\n- Scale data: {scale_data}\n')
+        # 모델 훈련 및 평가
         
-        config = self.config.get('sweep_configs')[model_name]['parameters'] 
-        if model_name == 'xgboost':
-            model = xgb.XGBRegressor(
-                    reg_alpha=config.get('alpha'),   
-                colsample_bytree=config.get('colsample_bytree'),
-                eta=config.get('eta'),
-                gamma=config.get('gamma'),
-                max_depth=config.get('max_depth'),
-                n_estimators=config.get('n_estimators'),
-                reg_lambda=config.get('reg_lambda'),
-                subsample=config.get('subsample'), 
-            )
-        elif model_name == 'random_forest':
-            # model = RandomForestRegressor(
-            #         n_estimators=config.get('n_estimators'),
-            #         max_depth=config.get('max_depth'),
-            #         min_samples_split=config.get('min_samples_split'),
-            #         min_samples_leaf=config.get('min_samples_leaf'),
-            #         max_features=config.get('max_features')
-            # )
-            # RandomForestRegressor를 이용해 회귀 모델을 적합시키겠습니다.
-            model = RandomForestRegressor(n_estimators=5, criterion='squared_error', random_state=1, n_jobs=-1)
-        elif model_name == 'lightgbm':
-            model = lgb.LGBMRegressor(
-                objective='regression',
-                num_leaves=config.get('num_leaves'),
-                learning_rate=config.get('learning_rate'),
-                subsample=config.get('subsample'),
-                colsample_bytree=config.get('colsample_bytree'),
-                lambda_l1=config.get('lambda_l1'),
-                lambda_l2=config.get('lambda_l2'),
-                min_data_in_leaf=config.get('min_data_in_leaf'),
-                feature_fraction=config.get('feature_fraction'),    
-                max_depth=config.get('max_depth')
-            )
-        # smote = SMOTE(random_state=42)
-        # X_train, y_train = smote.fit_resample(X_train, y_train)
-        # Recursive Feature Elimination 예시
-        # rfe = RFE(estimator=model, n_features_to_select=10)
-        # X_rfe = rfe.fit_transform(X_train, y)
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_path = os.path.join(base_path, 'data')
+        out_path = os.path.join(base_path, 'output')
+        prep_path = os.path.join(data_path, 'preprocessed')
 
-        if isinstance(X, pd.DataFrame):
-            X = X.values
-        if isinstance(y, pd.Series):
-            y = y.values
+        df = pd.read_csv(os.path.join(prep_path, 'df_raw.csv')) 
+        df = Utils.remove_unnamed_columns(df)
+        cols_id = ['is_test', 'target']
+        
+        cols = ['시군구', '전용면적', '계약년월', '건축년도', '층', '도로명', '아파트명']
+        cols_manual = ['전용면적', '계약년', '계약월', '구', '동', '층', '시군구+번지', '건축년도']
+        cols_feat = ['신축여부', '구', '강남여부']
+        cols_feat_common = ['k-난방방식', '전용면적', '좌표Y','좌표X','bus_direct_influence_count', 'subway_zone_type', '건축년도', '계약년월','k-수정일자', 'k-연면적']
+        cols_feat2= ['주차대수','대장아파트_거리','subway_shortest_distance','bus_shortest_distance', 'cluster_dist_transport' , 'subway_direct_influence_count', 'subway_indirect_influence_count']
+        
+        cols_to_remove = ['등기신청일자', '거래유형', '중개사소재지'] 
+        cols_to_remove_manual = ['홈페이지','k-전화번호', 'k-팩스번호', '고용보험관리번호']
+        cols_to_remove_cramer =['bus_zone_type',
+                            'cluster_dist_transport',
+                            'k-건설사(시공사)',
+                            'k-관리방식',
+                            'k-난방방식',
+                            'k-세대타입(분양형태)',
+                            'k-수정일자',
+                            'k-시행사',
+                            '강남여부',
+                            '관리비 업로드',
+                            '구',
+                            '도로명',
+                            '번지',
+                            '본번',
+                            '사용허가여부',
+                            '세대전기계약방법',
+                            '시군구',
+                            '아파트명',
+                            '청소비관리형태']
+        
+        cols_to_remove_all = cols_to_remove + cols_to_remove_manual + cols_to_remove_cramer
+        cols_to_remove_all = list(set(cols_to_remove_all))
 
-    
-        if type == 'kfold':
-            # Ensure X and y are vertically stacked properly
-            # X = np.vstack((X_train, X_val))
-            # y = np.hstack((y_train, y_val))  # Use hstack since y is a 1D array
-            model, rmse_avg = self.cross_validate_and_evaluate(model, X, y)
-            self.logger.info(f'kfold: mean RMSE for val data set: {rmse_avg}')
-            rmse = rmse_avg
-            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
-            pred = model.predict(X_val)
+        print(f'##### Prep null...')
+        df = DataPrep.remove_null(df)
+        continuous_columns, categorical_columns = Utils.categorical_numeric(df)
+        if null_preped =='baseline':
+            df = DataPrep.prep_null(df, continuous_columns, categorical_columns)
+        elif null_preped =='grouped':
+            df = DataPrep.prep_null_advanced(df, continuous_columns, categorical_columns)
+    #####
+        if df.isnull().sum().any():
+            print('##### Null values still exist. Basic prep_null...')
+            df = DataPrep.prep_null(df, continuous_columns, categorical_columns)
+
+        if features == 'baseline':
+            cols_to_remove = [col for col in cols_to_remove if col in df.columns]
+            cols_to_remove = list(set(cols_to_remove))
+            print(f'Baseline number of feature: {len(cols_to_remove)}\n{len(df.columns)}')
+            df = df.drop(columns=cols_to_remove)
+        elif features == 'manual':
+            cols_total = cols_id + cols_manual
+            cols_total = [col for col in cols_total if col in df.columns]
+            cols_total = list(set(cols_total))
+            print(f'Manual number of feature: {len(cols_total)}\n{len(df.columns)}')
+            df = df[cols_total]
+        elif features == 'minimum':
+            cols_total = cols_id + cols + cols_feat +cols_feat_common
+            cols_total = list(set(cols_total))
+            print(f'Minimum number of feature: {len(cols_total)}\n{len(df.columns)}')
+            cols_total = [col for col in cols_total if col in df.columns]
+            df = df[cols_total]
+        elif features == 'features_all':
+            cols_total = cols_id + cols + cols_feat + cols_feat2
+            cols_total = [col for col in cols_total if col in df.columns]
+            cols_total = list(set(cols_total))
+            print(f'All number of feature: {len(cols_total)}\n{len(df.columns)}')
+            df = df[cols_total]
+        elif features == 'remove_all':
+            cols_to_remove_all = [col for col in cols_to_remove_all if col in df.columns]
+            cols_to_remove_all = list(set(cols_to_remove_all))
+            print(f'Remove all features: {len(cols_to_remove_all)}\n{len(df.columns)}')
+            df = df.drop(columns=cols_to_remove_all)
+        elif features =='wrapper':
+            ols_total = cols_id + cols + cols_feat + cols_feat2
+            cols_total = [col for col in cols_total if col in df.columns]
+            cols_total = list(set(cols_total))
+            print(f'Wrapper method - number of feature: {len(cols_total)}\n{len(df.columns)}')
+            df = df[cols_total]
+        print(f'\n##### Feature selected: {df.shape}\n{df.columns}')
+#####
+        if outlier_removal == 'baseline':
+            df = DataPrep.remove_outliers_iqr(df, '전용면적')
+        elif outlier_removal == 'none':
+            print('No outlier removal')
+        elif outlier_removal == 'iqr_modified':
+            df = DataPrep.remove_outliers_iqr(df, '전용면적', modified=True)
+        feat_eng = FeatureEngineer()
+        #####
+        if feature_engineer=='baseline':
+            df = feat_eng.prep_feat(df)
+        elif feature_engineer == 'year_2020':
+            df = feat_eng.prep_feat(df, year = 2020)
+        elif feature_engineer == 'address':
+            df = feat_eng.prep_feat(df, year = 2020, col_add='address')
+        
+        #df = Utils.clean_column_names(df) # 컬럼 문자열 기호 제거
+        # 피처 이름 중복 확인 및 해결
+        duplicated_columns = df.columns[df.columns.duplicated()]
+        min_freq_threshold = 0.05
+        # 중복된 피처 이름 출력
+        if duplicated_columns.any():
+            print("중복된 피처 이름이 있습니다:", duplicated_columns.tolist())
+            df.columns = [f"feature_{i}" for i in range(df.shape[1])]
+        continuous_columns, categorical_columns = Utils.categorical_numeric(df)
+        Utils.remove_unnamed_columns(df)
+        df_train, X_test= Utils.unconcat_train_test(df)
+        y_train = df_train['target']
+        X_train = df_train.drop(columns=['target'])
+
+        if categorical_encoding == 'baseline':
+            X_train_encoded, X_test_encoded, label_encoders = DataPrep.encode_label(X_train, X_test, categorical_columns)
+        elif categorical_encoding == 'freq':
+            min_freq_dict = DataPrep.auto_adjust_min_frequency(X_train, base_threshold=min_freq_threshold)
+            X_train_encoded_cat = X_train[categorical_columns]
+            X_test_encoded_cat = X_test[categorical_columns]
+            X_train_encoded, X_test_encoded = DataPrep.frequency_encode(X_train_encoded_cat, X_test_encoded_cat, min_freq_dict)
+        elif categorical_encoding == 'target_encoding':
+            X_train_encoded, X_test_encoded = DataPrep.target_encoding_all(X_train, X_test, categorical_columns, 'target')
         else:
-            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=self.random_seed)
+            print('No categorical encoding')
+
+        if scale_data == 'baseline':
+            print('No scaling')
+        elif scale_data == 'log_transform_target':
+            print('Log scaling')
+            y_train = np.log(y_train)
+        config_xgb = config_xgb.parameters
+        config_lightgbm = config_lightgbm.parameters
+        config_random_forest = config_random_forest.parameters
+        config_catboost = config_catboost.parameters
+        if model_name == "xgboost":
+            
+            model = xgb.XGBRegressor(
+                eta=config_xgb.xgboost_eta,
+                max_depth=config_xgb.xgboost_max_depth,
+                subsample=config_xgb.xgboost_subsample,
+                colsample_bytree=config_xgb.xgboost_colsample_bytree,
+                gamma=config_xgb.xgboost_gamma,
+                reg_lambda=config_xgb.xgboost_reg_lambda,  
+                reg_alpha=config_xgb.xgboost_alpha,
+                n_estimators = config_xgb.xgboost_n_estimators,
+                #early_stopping_rounds=50
+            )
+
+        elif model_name == "lightgbm":
+            
+            model = lgb.LGBMRegressor(
+                learning_rate=config_lightgbm.lightgbm_learning_rate,
+                num_leaves=config_lightgbm.lightgbm_num_leaves,
+                max_depth=config_lightgbm.lightgbm_max_depth,
+                min_data_in_leaf=config_lightgbm.lightgbm_min_data_in_leaf,
+                feature_fraction=config_lightgbm.lightgbm_feature_fraction,
+                bagging_fraction=config_lightgbm.lightgbm_bagging_fraction,
+                lambda_l1=config_lightgbm.lightgbm_lambda_l1,
+                lambda_l2=config_lightgbm.lightgbm_lambda_l2,
+                #early_stopping_rounds=50
+            )
+        elif model_name == "random_forest":
+            
+            model = RandomForestRegressor(
+                n_estimators=config_random_forest.random_forest_n_estimators,
+                n_jobs=config_catboost.random_forest_n_jobs,
+                random_state=config_random_forest.random_forest_random_state,
+                criterion=config_random_forest.random_forest_criterion
+        
+            )
+        elif model_name == "catboost":
+            
+            model = CatBoostRegressor(
+                iterations=config_catboost.catboost_iterations,
+                depth=config_catboost.catboost_depth,
+                learning_rate=config_catboost.catboost_learning_rate,
+                l2_leaf_reg=config_catboost.catboost_l2_leaf_reg,
+                bagging_temperature=config_catboost.catboost_bagging_temperature,
+                verbose=False, 
+               # early_stopping_rounds=50
+            )
+        else:
+            raise ValueError("Unsupported model type")
+        
+        if split_type == 'kfold':
+            model, rmse_avg = cross_validate_and_evaluate(model, X_train_encoded, y_train, scale_data, random_seed)
+            print(f'kfold: mean RMSE for val data set: {rmse_avg}')
+            rmse = rmse_avg
+            X_train, X_val, y_train, y_val = train_test_split(X_train_encoded, y_train, test_size=0.2, random_state=random_seed)
+            pred = model.predict(X_val)
+        elif split_type == 'holdout':
+            X_train, X_val, y_train, y_val = train_test_split(X_train_encoded, y_train, test_size=0.2, random_state=random_seed)
             model.fit(X_train, y_train)#, early_stopping_rounds=50,verbose=100)
         
             pred = model.predict(X_val)
+            if scale_data == 'log_transform_target':
+                pred = np.exp(pred)
             rmse = np.sqrt(metrics.mean_squared_error(y_val, pred))
-        self.logger.info(f'RMSE {type}: {rmse}')
-            # 회귀 관련 metric을 통해 train/valid의 모델 적합 결과를 관찰합니다.
-        # 학습된 모델을 저장합니다. Pickle 라이브러리를 이용하겠습니다.
-        out_path = os.path.join(self.out_path,f'saved_model_{model_name}_{type}.pkl' )
-        with open(out_path, 'wb') as f:
-            pickle.dump(model, f)
-        self.logger.info(f'Model saved to {out_path}')
-        self.logger.info(f'Feature Importances for {model_name}')
-        # 위 feature importance를 시각화해봅니다.
-        importances = pd.Series(model.feature_importances_, index=list(X_train.columns))
-        importances = importances.sort_values(ascending=False)
-        title_feat = "Feature Importances"
-        plt.figure(figsize=(10,8))
-        plt.title(title_feat)
-        sns.barplot(x=importances, y=importances.index)
-        plt.show(block=False)
-        plt.pause(self.time_delay)  # 5초 동안 그래프 표시
+        wandb.log({"rmse": rmse})
+        wandb.finish()
         
-        plt.savefig(os.path.join(self.out_path, title_feat +'.png'), dpi=300, bbox_inches='tight')
-        plt.close()
-        return model, pred, rmse
+        # X_test_encoded = Utils.prepare_test_data(X_test_encoded, model)
+        # real_test_pred = model.predict(X_test_encoded)
 
-    # def k_fold_train(self, dt_train, k=5):
-    #     y = dt_train['target']
-    #     X = dt_train.drop(['target'], axis=1)
-    #     kf = KFold(n_splits=k, shuffle=True, random_state=self.random_seed)
-    #     # 또는 StratifiedKFold (타겟 불균형시)
-    #     # skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-        
-    #     # models=[]
-    #     # for train_index, val_index in kf.split(X, y):
-    #     #     X_train, X_val = X[train_index], X[val_index]
-    #     #     y_train, y_val = y[train_index], y[val_index]
-    
-    #     #     model, pred = self.model_train(X_train, X_val, y_train, y_val, self.out_path)
-    #     #     models.append({'model':model,'pred':pred})
- 
-    #     return 
-
-    # def inference(self, dt_test):
-    #     print('inference start.')
-    #     dt_test.head(2)      # test dataset에 대한 inference를 진행해보겠습니다.
-    #     # 저장된 모델을 불러옵니다.
-    #     out_model_path = os.path.join(self.out_path, 'saved_model.pkl')
-    #     with open(out_model_path, 'rb') as f:
-    #         model = pickle.load(f)
-
-    #     X_test = dt_test.drop(['target'], axis=1)
-
-    #     # Test dataset에 대한 inference를 진행합니다.
-    #     real_test_pred = model.predict(X_test)
-    #     #real_test_pred          # 예측값들이 출력됨을 확인할 수 있습니다.
-
-    #     # 앞서 예측한 예측값들을 저장합니다.
-    #     preds_df = pd.DataFrame(real_test_pred.astype(int), columns=["target"])
-    #     preds_df.to_csv(os.path.join(self.out_path,'output.csv'), index=False)
-    #     return preds_df
-
-    def load_data_pkl(self, data_path):
-        try:
-            with open(data_path, 'rb') as f:
-                data = pickle.load(f)
-        except:
-            print('err')
-            data = None
-        return data
-
-    def save_data(self, prep_data):
-        out_path = os.path.join(self.out_path,'prep_data.pkl')
-        try:
-            with open(out_path, 'wb') as f:
-                    pickle.dump(prep_data, f)
-            print('Dataset Saved to ', out_path)
-        except:
-            print('error.')
-        return out_path
+        # preds_df = pd.DataFrame(real_test_pred.astype(int), columns=["target"])
+        # out_pred_path = Utils.get_unique_filename(os.path.join(out_path,f'output_{features}_{outlier_removal}_{categorical_encoding}_{feature_engineer}_{model_name}_{split_type}.csv'))
+        # #preds_df.to_csv(out_pred_path, index=False)
