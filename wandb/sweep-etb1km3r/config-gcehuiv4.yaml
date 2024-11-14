@@ -1,0 +1,28 @@
+wandb_version: 1
+
+categorical_encoding:
+  value: freq
+feature_engineer:
+  value: address
+features:
+  value: manual
+model:
+  value: random_forest
+null_preped:
+  value: baseline
+outlier_removal:
+  value: iqr_modified
+random_forest_criterion:
+  value: squared_error
+random_forest_n_estimators:
+  value: 5
+random_forest_n_jobs:
+  value: -1
+random_forest_random_state:
+  value: 1
+random_seed:
+  value: -1
+scale_data:
+  value: scaling
+split_type:
+  value: kfold

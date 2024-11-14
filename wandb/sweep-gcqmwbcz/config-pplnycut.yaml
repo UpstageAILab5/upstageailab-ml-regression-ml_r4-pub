@@ -1,0 +1,28 @@
+wandb_version: 1
+
+categorical_encoding:
+  value: target_encoding
+feature_engineer:
+  value: year_2020
+features:
+  value: wrapper
+model:
+  value: lightgbm
+null_preped:
+  value: grouped
+outlier_removal:
+  value: iqr_modified
+random_forest_criterion:
+  value: squared_error
+random_forest_n_estimators:
+  value: 5
+random_forest_n_jobs:
+  value: -1
+random_forest_random_state:
+  value: 1
+random_seed:
+  value: -1
+scale_data:
+  value: scaling
+split_type:
+  value: holdout

@@ -1,6 +1,9 @@
 import os
 import pandas as pd
 
+def chk_index_duplicated(df):
+    print(df.index.duplicated().sum())
+    return df.index.duplicated().sum()
 
 class Utils:
     @staticmethod
@@ -68,30 +71,19 @@ class Utils:
                 return new_filepath
             counter += 1
     @staticmethod
-    def concat_train_test(dt, dt_test):
-        Utils.remove_unnamed_columns(dt)
-        Utils.remove_unnamed_columns(dt_test)
-        dt = dt.copy()
-        dt_test = dt_test.copy()
-        dt = dt.reset_index(drop=True)
-        dt_test = dt_test.reset_index(drop=True)
+    def concat_train_test(dt_origin, dt_test_origin):
+        dt = dt_origin.copy().reset_index(drop=True)
+        dt_test = dt_test_origin.copy().reset_index(drop=True)
+        # Add is_test and target columns
         dt['is_test'] = 0
+        dt_test['target'] = 0  # Ensure target column consistency
         dt_test['is_test'] = 1
-        
-        # dt_test에 'target' 열 추가
-        if 'target' not in dt_test.columns:
-            dt_test['target'] = 0
-        
-        # 인덱스를 고유하게 설정
-        dt.index = range(len(dt))
-        dt_test.index = range(len(dt_test))
-        
-        print(f'dt.shape: {dt.shape}')
-        print(f'dt_test.shape: {dt_test.shape}')
-        
-        concat = pd.concat([dt, dt_test], axis=0).reset_index(drop=True)
-        print(concat['is_test'].value_counts())
-        return concat
+
+        # Concatenate and reset index
+        combined = pd.concat([dt, dt_test], axis=0).reset_index(drop=True)
+        # Display counts of is_test values for verification
+        print(combined['is_test'].value_counts())
+        return combined
     @staticmethod
     def unconcat_train_test(concat):
         Utils.remove_unnamed_columns(concat)

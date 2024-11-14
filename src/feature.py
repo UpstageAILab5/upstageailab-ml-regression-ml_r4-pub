@@ -50,29 +50,35 @@ class FeatureEngineer():
         #concat_select['계약년월'] = concat_select['계약년월'].astype('str').apply(lambda x: x[:4] + x[4:])
         except:
             print('##### 계약년월 열이 없습니다.')
-        all = list(concat_select['구'].unique())
-        gangnam = ['강서구', '영등포구', '동작구', '서초구', '강남구', '송파구', '강동구']
-        gangbuk = [x for x in all if x not in gangnam]
+        try:
+            all = list(concat_select['구'].unique())
+            gangnam = ['강서구', '영등포구', '동작구', '서초구', '강남구', '송파구', '강동구']
+            gangbuk = [x for x in all if x not in gangnam]
 
-        assert len(all) == len(gangnam) + len(gangbuk)       # 알맞게 분리되었는지 체크합니다.
+            assert len(all) == len(gangnam) + len(gangbuk)       # 알맞게 분리되었는지 체크합니다.
 
-        # 강남의 여부를 체크합니다.
-        is_gangnam = []
-        for x in concat_select['구'].tolist() :
-            if x in gangnam :
-                is_gangnam.append(1)
-            else :
-                is_gangnam.append(0)
+                # 강남의 여부를 체크합니다.
+            is_gangnam = []
+            for x in concat_select['구'].tolist() :
+                if x in gangnam :
+                    is_gangnam.append(1)
+                else :
+                    is_gangnam.append(0)
 
-        # 파생변수를 하나 만릅니다.
-        concat_select['강남여부'] = is_gangnam
+            # 파생변수를 하나 만릅니다.
+            concat_select['강남여부'] = is_gangnam
+        except:
+            print('##### 강남여부 열이 없습니다.')
         
-        # 건축년도 분포는 아래와 같습니다. 특히 2005년이 Q3에 해당합니다.
-        # 2009년 이후에 지어진 건물은 10%정도 되는 것을 확인할 수 있습니다.
-        concat_select['건축년도'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.8, 0.9])
+        try:
+            # 건축년도 분포는 아래와 같습니다. 특히 2005년이 Q3에 해당합니다.
+            # 2009년 이후에 지어진 건물은 10%정도 되는 것을 확인할 수 있습니다.
+            concat_select['건축년도'].describe(percentiles = [0.1, 0.25, 0.5, 0.75, 0.8, 0.9])
 
-        # 따라서 2009년 이후에 지어졌으면 비교적 신축이라고 판단하고, 신축 여부 변수를 제작해보도록 하겠습니다.
-        concat_select['신축여부'] = concat_select['건축년도'].apply(lambda x: 1 if x >= int(year) else 0)
+            # 따라서 2009년 이후에 지어졌으면 비교적 신축이라고 판단하고, 신축 여부 변수를 제작해보도록 하겠습니다.
+            concat_select['신축여부'] = concat_select['건축년도'].apply(lambda x: 1 if x >= int(year) else 0)
+        except:
+            print('##### 신축여부 열이 없습니다.')
         try:
             if col_add == 'address':
                 concat_select['시군구+번지'] = concat_select['시군구'].astype(str) + concat_select['번지'].astype(str)
@@ -489,6 +495,7 @@ class FeatureSelect:
         columns_to_drop : list
             제거 추천되는 컬럼 리스트
         """
+        print(f'\n##### Cramer\'s V Analysis\n')
         def cramers_v(x, y):
             confusion_matrix = pd.crosstab(x, y)
             chi2 = chi2_contingency(confusion_matrix)[0]

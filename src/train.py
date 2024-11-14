@@ -10,11 +10,14 @@ from sklearn.metrics import make_scorer, mean_squared_error
 from sklearn import metrics
 import os
 import pandas as pd
-
+import yaml
 from src.feature import FeatureSelect, FeatureEngineer
 from src.utils import Utils
 from src.preprocess import DataPrep
 import sys
+def load_config(file_path):
+    with open(file_path, 'r') as file:
+        return yaml.safe_load(file)
 
 # 현재 파일의 경로를 기준으로 상위 디렉토리 경로 추가
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,7 +25,7 @@ parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
 print(f'###### Parent dir: {parent_dir}')
 
-from config.config import config_xgb, config_lightgbm, config_catboost, config_random_forest
+#from config.configs import config_xgb, config_lightgbm, config_catboost, config_random_forest
 # module_path = os.path.dirname(os.path.abspath(__file__))
 # print(module_path)
 # # 모듈 검색 경로에 추가
@@ -35,6 +38,7 @@ from config.config import config_xgb, config_lightgbm, config_catboost, config_r
 #     "diabetes": load_diabetes()
 # }
 random_seed = 2024
+
 
 def rmse(y_true, y_pred):
     return np.sqrt(mean_squared_error(y_true, y_pred))
@@ -88,8 +92,71 @@ def cross_validate_and_evaluate(model, X, y, scale_data, random_seed):
         
         return model, mean_rmse
 def train_model(config=None):
+    
     with wandb.init() as run:
+                
+        config_random_forest = {
+                'parameters': {
+                    'random_seed': -1,
+                    'random_forest_n_estimators': 5,
+                    'random_forest_criterion': 'squared_error',
+                    'random_forest_random_state': 1,
+                    'random_forest_n_jobs': -1
+                }
+            }
+        config_xgb = {
+        
+                'parameters': {
+            
+                    'xgboost_eta': 0.3,
+                    'xgboost_max_depth': 10,
+                    'xgboost_n_estimators': 500,
+                    'xgboost_subsample': 0.6239,
+                    'xgboost_colsample_bytree': 0.63995,
+                    'xgboost_gamma': 2.46691,
+                    'xgboost_alpha': 1.12406,
+                    'xgboost_reg_alpha': 0.1,
+                    'xgboost_reg_lambda': 5.081,
+                    
+                }
+        }
+        config_lightgbm = {
+                'parameters': {
+
+                    'lightgbm_n_estimators': 300,
+                    'lightgbm_learning_rate': 0.1,
+                    'lightgbm_num_leaves': 64,
+                    'lightgbm_max_depth': 7,
+                    'lightgbm_feature_fraction': 0.8,
+                    'lightgbm_bagging_fraction': 0.8,
+                    'lightgbm_colsample_bytree': 0.8,
+                    'lightgbm_subsample': 0.8,
+                    'lightgbm_min_data_in_leaf': 20,
+                    
+                
+                }
+        }
+
+        config_catboost = { 
+
+                'parameters': {
+                    'catboost_iterations': 500,
+                    'catboost_depth': 6,
+                    'catboost_learning_rate': 0.1,
+                    'catboost_l2_leaf_reg': 3.0,
+                    'catboost_bagging_temperature': 0.5,
+                    'catboost_random_strength': 2.0,
+                    'catboost_border_count': 128,
+                    'catboost_boosting_type': 'Plain'
+                }
+        }
+        config_xgb =config_xgb['parameters']
+        config_lightgbm = config_lightgbm['parameters']
+        config_catboost = config_catboost['parameters']
+        config_random_forest = config_random_forest['parameters']
+
         config = wandb.config
+        
         null_preped = config.null_preped 
         outlier_removal = config.outlier_removal
         features = config.features
@@ -155,6 +222,22 @@ def train_model(config=None):
             print('##### Null values still exist. Basic prep_null...')
             df = DataPrep.prep_null(df, continuous_columns, categorical_columns)
 
+        if outlier_removal == 'baseline':
+            df = DataPrep.remove_outliers_iqr(df, '전용면적')
+        elif outlier_removal == 'none':
+            print('No outlier removal')
+        elif outlier_removal == 'iqr_modified':
+            df = DataPrep.remove_outliers_iqr(df, '전용면적', modified=True)
+        feat_eng = FeatureEngineer()
+        #####
+
+        if feature_engineer=='baseline':
+            df = feat_eng.prep_feat(df)
+        elif feature_engineer == 'year_2020':
+            df = feat_eng.prep_feat(df, year = 2020)
+        elif feature_engineer == 'address':
+            df = feat_eng.prep_feat(df, year = 2020, col_add='address')
+
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
             cols_to_remove = list(set(cols_to_remove))
@@ -191,20 +274,6 @@ def train_model(config=None):
             df = df[cols_total]
         print(f'\n##### Feature selected: {df.shape}\n{df.columns}')
 #####
-        if outlier_removal == 'baseline':
-            df = DataPrep.remove_outliers_iqr(df, '전용면적')
-        elif outlier_removal == 'none':
-            print('No outlier removal')
-        elif outlier_removal == 'iqr_modified':
-            df = DataPrep.remove_outliers_iqr(df, '전용면적', modified=True)
-        feat_eng = FeatureEngineer()
-        #####
-        if feature_engineer=='baseline':
-            df = feat_eng.prep_feat(df)
-        elif feature_engineer == 'year_2020':
-            df = feat_eng.prep_feat(df, year = 2020)
-        elif feature_engineer == 'address':
-            df = feat_eng.prep_feat(df, year = 2020, col_add='address')
         
         #df = Utils.clean_column_names(df) # 컬럼 문자열 기호 제거
         # 피처 이름 중복 확인 및 해결
@@ -228,7 +297,9 @@ def train_model(config=None):
             X_test_encoded_cat = X_test[categorical_columns]
             X_train_encoded, X_test_encoded = DataPrep.frequency_encode(X_train_encoded_cat, X_test_encoded_cat, min_freq_dict)
         elif categorical_encoding == 'target_encoding':
+            X_train['target'] = y_train
             X_train_encoded, X_test_encoded = DataPrep.target_encoding_all(X_train, X_test, categorical_columns, 'target')
+            X_train.drop(columns=['target'], inplace=True)
         else:
             print('No categorical encoding')
 
@@ -237,54 +308,51 @@ def train_model(config=None):
         elif scale_data == 'log_transform_target':
             print('Log scaling')
             y_train = np.log(y_train)
-        config_xgb = config_xgb.parameters
-        config_lightgbm = config_lightgbm.parameters
-        config_random_forest = config_random_forest.parameters
-        config_catboost = config_catboost.parameters
+
         if model_name == "xgboost":
             
             model = xgb.XGBRegressor(
-                eta=config_xgb.xgboost_eta,
-                max_depth=config_xgb.xgboost_max_depth,
-                subsample=config_xgb.xgboost_subsample,
-                colsample_bytree=config_xgb.xgboost_colsample_bytree,
-                gamma=config_xgb.xgboost_gamma,
-                reg_lambda=config_xgb.xgboost_reg_lambda,  
-                reg_alpha=config_xgb.xgboost_alpha,
-                n_estimators = config_xgb.xgboost_n_estimators,
+                eta=config_xgb['xgboost_eta'],
+                max_depth=config_xgb['xgboost_max_depth'],
+                subsample=config_xgb['xgboost_subsample'],
+                colsample_bytree=config_xgb['xgboost_colsample_bytree'],
+                gamma=config_xgb['xgboost_gamma'],
+                reg_lambda=config_xgb['xgboost_reg_lambda'],  
+                reg_alpha=config_xgb['xgboost_alpha'],
+                n_estimators = config_xgb['xgboost_n_estimators'],
                 #early_stopping_rounds=50
             )
 
         elif model_name == "lightgbm":
             
             model = lgb.LGBMRegressor(
-                learning_rate=config_lightgbm.lightgbm_learning_rate,
-                num_leaves=config_lightgbm.lightgbm_num_leaves,
-                max_depth=config_lightgbm.lightgbm_max_depth,
-                min_data_in_leaf=config_lightgbm.lightgbm_min_data_in_leaf,
-                feature_fraction=config_lightgbm.lightgbm_feature_fraction,
-                bagging_fraction=config_lightgbm.lightgbm_bagging_fraction,
-                lambda_l1=config_lightgbm.lightgbm_lambda_l1,
-                lambda_l2=config_lightgbm.lightgbm_lambda_l2,
+                learning_rate=config_lightgbm['lightgbm_learning_rate'],
+                num_leaves=config_lightgbm['lightgbm_num_leaves'],
+                max_depth=config_lightgbm['lightgbm_max_depth'],
+                min_data_in_leaf=config_lightgbm['lightgbm_min_data_in_leaf'],
+                feature_fraction=config_lightgbm['lightgbm_feature_fraction'],
+                bagging_fraction=config_lightgbm['lightgbm_bagging_fraction'],
+                lambda_l1=config_lightgbm['lightgbm_lambda_l1'],
+                lambda_l2=config_lightgbm.get['lightgbm_lambda_l2'],
                 #early_stopping_rounds=50
             )
         elif model_name == "random_forest":
             
             model = RandomForestRegressor(
-                n_estimators=config_random_forest.random_forest_n_estimators,
-                n_jobs=config_catboost.random_forest_n_jobs,
-                random_state=config_random_forest.random_forest_random_state,
-                criterion=config_random_forest.random_forest_criterion
+                n_estimators=config_random_forest['random_forest_n_estimators'],
+                n_jobs=config_catboost['random_forest_n_jobs'],
+                random_state=config_random_forest['random_forest_random_state'],
+                criterion=config_random_forest['random_forest_criterion']
         
             )
         elif model_name == "catboost":
             
             model = CatBoostRegressor(
-                iterations=config_catboost.catboost_iterations,
-                depth=config_catboost.catboost_depth,
-                learning_rate=config_catboost.catboost_learning_rate,
-                l2_leaf_reg=config_catboost.catboost_l2_leaf_reg,
-                bagging_temperature=config_catboost.catboost_bagging_temperature,
+                iterations=config_catboost['catboost_iterations'],
+                depth=config_catboost['catboost_depth'],
+                learning_rate=config_catboost['catboost_learning_rate'],
+                l2_leaf_reg=config_catboost['catboost_l2_leaf_reg'],
+                bagging_temperature=config_catboost['catboost_bagging_temperature'],
                 verbose=False, 
                # early_stopping_rounds=50
             )

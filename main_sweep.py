@@ -1,7 +1,9 @@
 import wandb
 import os
-from config.config import config_baseline
+from config.configs import config_baseline
 from src.train import train_model
+
+import yaml
 
 def save_sweep_id(sweep_id, filename="sweep_id.txt"):
     with open(filename, "w") as f:
@@ -13,8 +15,6 @@ def load_sweep_id(filename="sweep_id.txt"):
             return f.read().strip()
     return None
 def run_sweep_for_model_and_dataset(project_name, count):
-    # 각 모델에 대해 스위프 실행
-    # for model_name, sweep_config in sweep_configs#.items():
     try:    
         sweep_id = load_sweep_id(f"sweep_id_{project_name}.txt")
     except FileNotFoundError:
@@ -22,9 +22,8 @@ def run_sweep_for_model_and_dataset(project_name, count):
         sweep_id = None
     # sweep_id = "g0kmrn6l"
     if not sweep_id:
+
         print('No sweep id. generating...')
-        # 스위프 ID가 없으면 새로 생성
-        #sweep_id = wandb.sweep(sweep_configs, project=project_name)
         sweep_id = wandb.sweep(config_baseline, project=project_name)
         save_sweep_id(sweep_id, f"sweep_id_{project_name}.txt")
         
@@ -38,7 +37,7 @@ def run_sweep_for_model_and_dataset(project_name, count):
 
 def main_sweep():
     count = 500
-    project_name = 'House_price_prediction_group_ml4_test_v0'#'House_price_prediction'
+    project_name = 'Upstageailab5_ml_r4_House_price_prediction_1'#'House_price_prediction'
     run_sweep_for_model_and_dataset(project_name, count)
 
 main_sweep()

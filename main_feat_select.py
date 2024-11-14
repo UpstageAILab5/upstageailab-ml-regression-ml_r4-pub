@@ -22,7 +22,7 @@ from pathlib import Path
 # current = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # print(f'\n##########current: {current}')
 # sys.path.append(str(current))
-from config.config import config_baseline
+# from config.config import config_baseline
 from src.feature import FeatureEngineer, FeatureSelect
 from src.utils import Utils
 from src.preprocess import DataPrep
@@ -62,8 +62,8 @@ def main():
     os.makedirs(prep_out_path, exist_ok=True)
     path_raw = os.path.join(prep_path, 'df_raw.csv')
     path_feat = os.path.join(prep_path, 'feat_concat_raw.csv')
-    path_out_null_prep = os.path.join(prep_out_path, 'df_null-preped.csv')
-    path_out_encoded = os.path.join(prep_out_path, 'df_null-preped-encoded.csv')
+    path_out_null_prep = os.path.join(prep_out_path, f'df_null-preped_{null_prep_method}.csv')
+    path_out_encoded = os.path.join(prep_out_path, f'df_null-preped-encoded_{encode_method}.csv')
     
     path_feat = os.path.join(prep_path, 'feat_concat_raw.csv')
     df_feat = pd.read_csv(path_feat)
@@ -71,7 +71,8 @@ def main():
     #df = pd.read_csv(os.path.join(prep_path, 'df_raw_null_prep_coord.csv'))
     df_raw = pd.read_csv(path_raw)
     df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed')]
-    df_raw['시군구+번지'] = df_raw['시군구'].astype(str) + df_raw['번지'].astype(str)
+
+    df_raw['시군구+번지'] = df_raw['시군구'].astype(str) + ' '+  df_raw['번지'].astype(str)
     print(f'시군구 번지 컬럼 생성: {df_raw.columns}')
 
     #df_raw = df_raw.loc[:, cols_to_select + cols_id]
@@ -85,7 +86,7 @@ def main():
 ##### Null prep: Interpolation for Null values
     continuous_columns, categorical_columns = Utils.categorical_numeric(df_raw)
     flag=False
-    if flag:#os.path.exists(path_out_null_prep):
+    if os.path.exists(path_out_null_prep):
         df_interpolated = pd.read_csv(path_out_null_prep, index_col=0)
         df_interpolated = Utils.remove_unnamed_columns(df_interpolated)
         print(f'##### Load null prep: {path_out_null_prep}')
@@ -187,8 +188,24 @@ def main():
     
     #rf = RandomForestRegressor(random_state=2023)
     # XGBRegressor 모델 생성
-    config = config_baseline.get('parameters')
-    
+  
+    config = {
+ 
+        'parameters': {
+       
+            'xgboost_eta': 0.3,
+            'xgboost_max_depth': 10,
+            'xgboost_n_estimators': 500,
+            'xgboost_subsample': 0.6239,
+            'xgboost_colsample_bytree': 0.63995,
+            'xgboost_gamma': 2.46691,
+            'xgboost_alpha': 1.12406,
+            'xgboost_reg_alpha': 0.1,
+            'xgboost_reg_lambda': 5.081,
+            
+        }
+    }
+    config = config['parameters']
     pprint.pprint(config)
     model = xgb.XGBRegressor(
                 eta=config.xgboost_eta,
