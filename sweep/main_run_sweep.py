@@ -46,6 +46,8 @@ def run_sweep_for_model_and_dataset(project_name, count):
         #sweep_id = wandb.sweep(sweep_configs, project=project_name)
         sweep_id = wandb.sweep(config_baseline, project=project_name)
         save_sweep_id(sweep_id, f"sweep_id_{project_name}.txt")
+        
+    sweep_id = 'h5788eza'
     print(f'\n#### sweep_id: {sweep_id}\n')
     print(f'count: {count}')
     print(f'project_name: {project_name}')

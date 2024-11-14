@@ -68,12 +68,13 @@ def train_model(config=None):
     with wandb.init() as run:
         config = wandb.config
         dataset_name = config.dataset_name
+        null_preped = config.null_preped 
+        outlier_removal = config.outlier_removal
         features = config.features
+        feature_engineer = config.feature_engineer
+        categorical_encoding = config.categorical_encoding
         split_type = config.split_type
         model_name = config.model
-        outlier_removal = config.outlier_removal
-        categorical_encoding = config.categorical_encoding
-        feature_engineer = config.feature_engineer
 
         # 모델 선택
         print(f'\n#### Model: {model_name} ####\n')
@@ -104,7 +105,14 @@ def train_model(config=None):
         cols_feat = ['신축여부', '구', '강남여부']
         cols_feat_common = ['k-난방방식', '전용면적', '좌표Y','좌표X','bus_direct_influence_count', 'subway_zone_type', '건축년도', '계약년월','k-수정일자', 'k-연면적']
         cols_feat2= ['주차대수','대장아파트_거리','subway_shortest_distance','bus_shortest_distance', 'cluster_dist_transport' , 'subway_direct_influence_count', 'subway_indirect_influence_count']
-
+        
+        print(f'##### Prep null...')
+        df = DataPrep.remove_null(df)
+        if null_preped =='baseline':
+            df = DataPrep.prep_null()
+        elif null_preped =='grouped':
+            df = DataPrep.prep_null_advanced()
+    
         if features == 'baseline':
             cols_to_remove = [col for col in cols_to_remove if col in df.columns]
             print(f'Baseline feature: {len(cols_to_remove)}\n{cols_to_remove}')
