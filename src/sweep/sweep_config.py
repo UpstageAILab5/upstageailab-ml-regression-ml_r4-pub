@@ -17,7 +17,7 @@ sweep_config_lightgbm = {
         'max': 1000
             },
             'lightgbm_learning_rate': {
-                'distribution': 'log_uniform',
+                'distribution': 'uniform',  # log_uniform 대신 uniform 사용
                 'min': 0.01,
                 'max': 0.3
                 },
@@ -78,7 +78,7 @@ sweep_config_xgb = {
                 'max': 1000
             },
             'xgboost_eta': {
-                'distribution': 'log_uniform',
+                'distribution': 'uniform',  # log_uniform 대신 uniform 사용
                 'min': 0.01,
                 'max': 0.3
             },
@@ -128,7 +128,7 @@ sweep_configs = {
                 'max': 1000
             },
             'xgboost_eta': {
-                'distribution': 'log_uniform',
+                'distribution': 'uniform',  # log_uniform 대신 uniform 사용
                 'min': 0.01,
                 'max': 0.3
             },
@@ -164,12 +164,12 @@ sweep_configs = {
             },
 
     'lightgbm_n_estimators': {
-        'distribution': 'int_uniform',
-        'min': 100,
-        'max': 1000
+                'distribution': 'int_uniform',
+                'min': 100,
+                'max': 1000
             },
             'lightgbm_learning_rate': {
-                'distribution': 'log_uniform',
+                'distribution': 'uniform',  # log_uniform 대신 uniform 사용
                 'min': 0.01,
                 'max': 0.3
                 },
@@ -256,7 +256,7 @@ sweep_configs = {
             'max': 10
         },
         'catboost_learning_rate': {
-            'distribution': 'log_uniform',
+            'distribution': 'uniform',  # log_uniform 대신 uniform 사용
             'min': 0.01,
             'max': 0.3
         },
