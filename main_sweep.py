@@ -20,14 +20,13 @@ def run_sweep_for_model_and_dataset(project_name, count):
     except FileNotFoundError:
         print('err')
         sweep_id = None
-    sweep_id = "us9ntfqh"
+    sweep_id = "wwkyi1gh"
     if not sweep_id:
 
         print('No sweep id. generating...')
         sweep_id = wandb.sweep(config_baseline, project=project_name)
         save_sweep_id(sweep_id, f"sweep_id_{project_name}.txt")
-        
-    #sweep_id = 't0c5c3tl'
+
     print(f'\n#### sweep_id: {sweep_id}\n')
     print(f'count: {count}')
     print(f'project_name: {project_name}')
@@ -37,7 +36,7 @@ def run_sweep_for_model_and_dataset(project_name, count):
 
 def main_sweep():
     count = 700
-    project_name = 'House_price_prediction_ml4_v4'#'House_price_prediction'
+    project_name = 'House_price_prediction_ml4_v5'#'House_price_prediction'
     run_sweep_for_model_and_dataset(project_name, count)
 
 main_sweep()
