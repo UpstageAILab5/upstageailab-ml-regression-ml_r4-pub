@@ -5,7 +5,7 @@
 | ![박정준](https://avatars.githubusercontent.com/u/156163982?v=4) | ![이다언](https://avatars.githubusercontent.com/u/156163982?v=4) | ![김동완](https://avatars.githubusercontent.com/u/156163982?v=4) | ![김묘정](https://avatars.githubusercontent.com/u/156163982?v=4) | ![이현지](https://avatars.githubusercontent.com/u/156163982?v=4) |
 | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: |
 |            [박정준](https://github.com/UpstageAILab)             |            [이다언](https://github.com/danielinjesus/AI_Portfolio/tree/main/AI_Projects/House_Price_Prediction)             |            [김묘정](https://github.com/UpstageAILab)             |            [이현지](https://github.com/UpstageAILab)             |            [김동완A](https://github.com/UpstageAILab)             |
-|                            팀장,피처조정 및 선별                             |                         피처엔지니어링                             |           모델링, AutoML                       |                                       베이스라인 코드 분석                   |                                  좌표 데이터 API 수집                        |
+|                            팀장, 피처조정 및 선별                             |                         피처엔지니어링                             |           모델링, AutoML                       |                                       베이스라인 코드 분석                   |                                  좌표 데이터 API 수집                        |
 ## 0. Overview
 
 ### Environment
