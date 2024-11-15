@@ -32,7 +32,7 @@ def main():
     vif_threshold = 10 
     cramer_v_threshold = 0.7
     min_freq_threshold = 0.05
-    ratio_sample = 0.05
+    ratio_sample = 0.02
     random_state =2023
     k = 20 #kbest #f_regression for num, mutual_info_classif for cat
     cols_id = ['is_test', 'target']
@@ -188,8 +188,8 @@ def main():
     X_cat =X_sampled[categorical_columns]
     X_num = X_sampled[continuous_columns]
     
-    X_cat, kbest_features_cat = FeatureSelect.select_features_by_kbest(X_cat, y_sampled, X_cat.columns, mutual_info_classif, k=20)
-    X_num, kbest_features_num = FeatureSelect.select_features_by_kbest(X_num, y_sampled, X_num.columns, f_regression, k=20)
+    X_cat, kbest_features_cat = FeatureSelect.select_features_by_kbest(X_cat, y_sampled, X_cat.columns, mutual_info_classif, k=k)
+    X_num, kbest_features_num = FeatureSelect.select_features_by_kbest(X_num, y_sampled, X_num.columns, f_regression, k=k)
     
     #rf = RandomForestRegressor(random_state=2023)
     # XGBRegressor 모델 생성
