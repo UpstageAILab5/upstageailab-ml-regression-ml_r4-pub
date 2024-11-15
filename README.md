@@ -64,7 +64,6 @@
 
 ```Python
 
-코드 복사
 ├── src
 │   ├── preprocess.py
 │   │── feature.py
@@ -85,7 +84,6 @@
 ├── requirements.txt
 └── README.md
 
-```
 
 ```
 
