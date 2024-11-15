@@ -159,20 +159,20 @@
 ### Leader Board
 
 - **베이스라인 점수:** 46,433
-- **최종 점수:** 베이스라인 대비 약 2배 향상
-- **순위:** [순위 정보가 있을 경우 기재]
+- **최종 점수:** 14,844 (베이스라인 대비 약 2배 향상)
+- **순위:** 3등
 
 *(리더보드 캡처 이미지가 있을 경우 첨부)*
 
 ### Presentation
 
-- **발표 자료:** Presentation.pdf
+- **발표 자료:** [Google Slide 링크](https://docs.google.com/presentation/d/1yZgRoott_eZnF6p2f0CFERun2Yl78FbtjVDjerJ6Zms/edit#slide=id.g314fe61daed_10_89)
 
 ### Etc
 
 ### Meeting Log
 
-- **회의록:** [Notion 링크 또는 Google Docs 링크](https://www.notion.so/wandb-16d1fc4f91164c5c92da1a11766fcfbd?pvs=21)
+- **회의록:** [Notion 링크 또는 Google Docs 링크](https://www.notion.so/6289d8a63f724563b0a470ddece7ff24?v=697ed335fa56441a82df84cdac6099e7&pvs=4)
 
 ### Reference
 
