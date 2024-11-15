@@ -62,31 +62,30 @@
 
 ### Directory
 
-```kotlin
-kotlin
+```Python
+
 코드 복사
-├── code
-│   ├── jupyter_notebooks
-│   │   ├── data_analysis.ipynb
-│   │   ├── feature_engineering.ipynb
-│   │   └── model_training.ipynb
+├── src
+│   ├── preprocess.py
+│   │── feature.py
 │   ├── train.py
 │   └── utils.py
-├── docs
-│   ├── pdf
-│   │   └── Presentation.pdf
-│   └── reports
-│       └── EDA_report.pdf
+├── config
+│   └── config.yaml
+│   └── configs.py
+├── output
+│   ├── plots
+│   │── reports
 ├── data
-│   ├── raw
-│   │   ├── train.csv
-│   │   └── test.csv
-│   ├── processed
-│   │   └── processed_data.csv
-│   └── external
-│       ├── bus_station_data.csv
-│       └── subway_station_data.csv
+│   ├── preprocessed
+├── notebook
+├── data
+├── main_sweep.py
+├── main_feat_select.py
+├── requirements.txt
 └── README.md
+
+```
 
 ```
 
