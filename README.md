@@ -168,11 +168,12 @@
 
 - **발표 자료:** [Google Slide 링크](https://docs.google.com/presentation/d/1yZgRoott_eZnF6p2f0CFERun2Yl78FbtjVDjerJ6Zms/edit#slide=id.g314fe61daed_10_89)
 
-### Etc
+### Report
+- **Fast-Up Report:**[Notion 링크](https://www.notion.so/Fast-Up-Team-Report-e11312a2a7f9433eb421031b8e7b337a?pvs=4)
 
 ### Meeting Log
 
-- **회의록:** [Notion 링크 또는 Google Docs 링크](https://www.notion.so/6289d8a63f724563b0a470ddece7ff24?v=697ed335fa56441a82df84cdac6099e7&pvs=4)
+- **회의록:** [Notion 링크](https://www.notion.so/6289d8a63f724563b0a470ddece7ff24?v=697ed335fa56441a82df84cdac6099e7&pvs=4)
 
 ### Reference
 
