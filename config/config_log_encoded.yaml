@@ -1,0 +1,150 @@
+path:
+  base: &id001 !!python/object/apply:pathlib.WindowsPath
+  - D:\
+  - dev
+  - upstageailab5-ml-regression-ml_r4
+  logs: D:\dev\upstageailab5-ml-regression-ml_r4\logs
+  config: D:\dev\upstageailab5-ml-regression-ml_r4\config
+  data: D:\dev\upstageailab5-ml-regression-ml_r4\data
+  prep: D:\dev\upstageailab5-ml-regression-ml_r4\data\preprocessed
+  out: D:\dev\upstageailab5-ml-regression-ml_r4\output
+name:
+  dataset_name: encoded
+  split_type: cross_validation
+  model_name: xgboost
+base_path: *id001
+subway_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\subway_feature.csv
+bus_feature: D:\dev\upstageailab5-ml-regression-ml_r4\data\bus_feature.csv
+target: target
+thr_ratio_outlier: 0.01
+thr_ratio_null: 0.9
+thr_detect_categorical: 1e-7
+thr_null: 1000000
+time_delay: 3
+random_seed: 2024
+model_params:
+  n_estimators: 3000
+  max_depth: 5
+  learning_rate: 0.01
+data_paths:
+  train: data/train.csv
+  test: data/test.csv
+features:
+- feature1
+- feature2
+- feature3
+wandb:
+  project: project-regression_house_price
+  entity: joon
+  group: group-ml4
+sweep_configs:
+  xgboost:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      eta: 0.3
+      max_depth: 10
+      subsample: 0.6239
+      colsample_bytree: 0.5305
+      gamma: 4.717
+      reg_lambda: 5.081
+      alpha: 0.4902
+      n_estimators: 551
+  random_forest:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      n_estimators: 200
+      max_depth: 20
+      min_samples_split: 2
+      min_samples_leaf: 1
+      max_features: log2
+models:
+  xgboost:
+    n_estimators:
+      min: 100
+      max: 1000
+      distribution: int_uniform
+    max_depth:
+      min: 3
+      max: 10
+      distribution: int_uniform
+    learning_rate:
+      min: 0.01
+      max: 0.3
+      distribution: log_uniform
+    subsample:
+      min: 0.6
+      max: 1.0
+      distribution: uniform
+    colsample_bytree:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+    gamma:
+      min: 0.0
+      max: 5.0
+      distribution: uniform
+    reg_lambda:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    alpha:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    min_child_weight:
+      distribution: int
+      min: 1
+      max: 7
+  lightgbm:
+    n_estimators:
+      min: 100
+      max: 1000
+      distribution: int_uniform
+    max_depth:
+      min: 3
+      max: 10
+      distribution: int_uniform
+    learning_rate:
+      min: 0.01
+      max: 0.3
+      distribution: log_uniform
+    subsample:
+      min: 0.6
+      max: 1.0
+      distribution: uniform
+    colsample_bytree:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+    lambda_l1:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    lambda_l2:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    min_data_in_leaf:
+      min: 10
+      max: 100
+      distribution: int_uniform
+    feature_fraction:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+transport_cols:
+- subway_direct_influence_count
+- subway_indirect_influence_count
+- subway_shortest_distance
+- subway_zone_type
+- bus_station_area_count
+- bus_direct_influence_count
+- bus_indirect_influence_count
+- bus_shortest_distance
+- bus_zone_type

@@ -1,19 +1,157 @@
-data:
-  raw_data_path: "data/raw/"
-  processed_data_path: "data/processed/"
-  target_column: "price"
-  categorical_features:
-    - "property_type"
-    - "location"
-    - "transaction_type"
-  numerical_features:
-    - "size"
-    - "rooms"
-    - "age"
-    - "floor"
-    - "latitude"
-    - "longitude"
+# config.yaml
 
-preprocessing:
-  missing_threshold: 0.5  # 결측치 비율이 이 이상인 컬럼 제거
-  outlier_threshold: 3    # IQR 방식의 이상치 처리를 위한 배수
+name:
+  dataset_name: feat_baseline
+  split_type: kfold
+  model_name: xgboost
+
+target: target
+thr_ratio_outlier: 0.01
+thr_ratio_null: 0.9
+thr_detect_categorical: 1e-7
+thr_null: 1000000
+time_delay: 3
+random_seed: 2023
+
+model_params:
+  n_estimators: 3000
+  max_depth: 5
+  learning_rate: 0.01
+data_paths:
+  train: data/train.csv
+  test: data/test.csv
+features:
+  - feature1
+  - feature2
+  - feature3
+
+wandb:
+  project: project-regression_house_price     # 필수: wandb 프로젝트명
+  entity: joon          # 필수: wandb 사용자/조직명
+  group: group-ml4   # 선택: 실험 그룹명
+
+
+sweep_configs:
+  xgboost:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      eta: 0.1
+      max_depth: 10
+      subsample: 0.6239
+      colsample_bytree: 0.5305
+      gamma: 4.717
+      reg_lambda: 5.081
+      alpha: 0.4902
+      n_estimators: 2000
+  random_forest:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      n_estimators: 200
+      max_depth: 20
+      min_samples_split: 2
+      min_samples_leaf: 1
+      max_features: log2
+  lightgbm:
+    method: bayes
+    metric:
+      name: rmse
+      goal: minimize
+    parameters:
+      num_leaves: 31
+      max_depth: -1
+      learning_rate: 0.05
+      n_estimators: 500
+      min_child_samples: 20
+      subsample: 0.8
+      colsample_bytree: 0.8
+      reg_alpha: 0.1
+      reg_lambda: 0.1
+      lambda_l1: 0.1
+      lambda_l2: 0.1
+      min_data_in_leaf: 20
+      feature_fraction: 0.8
+
+models:
+  xgboost:
+    n_estimators:
+      min: 100
+      max: 1000
+      distribution: int_uniform
+    max_depth:
+      min: 3
+      max: 10
+      distribution: int_uniform
+    learning_rate:
+      min: 0.01
+      max: 0.3
+      distribution: log_uniform
+    subsample:
+      min: 0.6
+      max: 1.0
+      distribution: uniform
+    colsample_bytree:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+    gamma:
+      min: 0.0
+      max: 5.0
+      distribution: uniform
+    reg_lambda:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    alpha:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    min_child_weight:
+      distribution: int
+      min: 1
+      max: 7
+
+
+  lightgbm:
+    n_estimators:
+      min: 100
+      max: 1000
+      distribution: int_uniform
+    max_depth:
+      min: 3
+      max: 10
+      distribution: int_uniform
+    learning_rate:
+      min: 0.01
+      max: 0.3
+      distribution: log_uniform
+    subsample:
+      min: 0.6
+      max: 1.0
+      distribution: uniform
+    colsample_bytree:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+    lambda_l1:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    lambda_l2:
+      min: 0.0
+      max: 10.0
+      distribution: uniform
+    min_data_in_leaf:
+      min: 10
+      max: 100
+      distribution: int_uniform
+    feature_fraction:
+      min: 0.4
+      max: 1.0
+      distribution: uniform
+

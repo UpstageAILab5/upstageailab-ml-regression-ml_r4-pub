@@ -1,0 +1,32 @@
+program: main_sweep.py
+method: bayes
+metric:
+  name: rmse
+  goal: minimize
+parameters:
+  model:
+    values: ["xgboost", "random_forest", "lightgbm", "catboost"]
+  features:
+    values: ["baseline", "manual", "minimum", "features_all", "remove_all", "wrapper"]
+  null_preped:
+    values: ["baseline", "grouped"]
+  outlier_removal:
+    values: ["iqr_modified", "baseline", "none"]
+  feature_engineer:
+    values: ["year_2020", "address", "baseline"]
+  categorical_encoding:
+    values: ["baseline", "freq", "target_encoding"]
+  split_type:
+    values: ["holdout", "kfold"]
+  scale_data:
+    values: ["log_transform_target", "baseline", "scaling"]
+  random_seed:
+    values: [-1]
+  random_forest_n_estimators:
+    values: [5]
+  random_forest_criterion:
+    values: ["squared_error"]
+  random_forest_random_state:
+    values: [1]
+  random_forest_n_jobs:
+    values: [-1]
