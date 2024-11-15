@@ -35,6 +35,8 @@ class DataPrep:
 
         transformed_train = X_train.copy()
         transformed_test = X_test.copy()
+        common_features = set(transformed_train.columns) & set(transformed_test.columns)
+        continuous_features = [col for col in continuous_features if col in common_features]
 
         for feature in continuous_features:
             # Plot original distributions for X_train and X_test

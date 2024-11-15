@@ -185,6 +185,8 @@ def main():
                                             n_samples=n_resample,
                                             random_state=random_state)
     # #상위 K개 특성만 먼저 선택
+    categorical_columns = [col for col in categorical_columns if col in X_sampled.columns]
+    continuous_columns = [col for col in continuous_columns if col in X_sampled.columns]
     X_cat =X_sampled[categorical_columns]
     X_num = X_sampled[continuous_columns]
     
@@ -222,7 +224,7 @@ def main():
                 reg_alpha=config.xgboost_alpha,
             )
     #rf = Ridge(alpha=1.0)
-    selected_rfe, selected_sfs = FeatureSelect.wrapper_method(X_sampled, y_sampled, model, fig_path)
+    selected_rfe, selected_sfs = FeatureSelect.wrapper_method(X_cat, X_num, y_sampled, model, fig_path)
     common_features, union_features, rest_features = FeatureSelect.compare_selected_features(selected_rfe, selected_sfs, ['RFE', 'SFS'], original_column_names)
   
     dict_result = {'vif': vif, 
